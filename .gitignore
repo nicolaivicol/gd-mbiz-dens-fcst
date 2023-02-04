@@ -1,0 +1,8 @@
+data/
+artifacts/
+.idea
+**/.ipynb_checkpoints
+.pytest_cache
+.venv*
+dask-worker-space/
+temp-plot.html
