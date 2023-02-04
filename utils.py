@@ -308,7 +308,7 @@ def plot_aggregated_cfips_population(df):
 
 
 def make_plots_cfips(df_train, state):
-    if config.DEBUG_MODE:
+    if config.MAKE_PLOTS:
         return
 
     plot_multiple_cfips_microbiz_dens(df_train.filter(pl.col('state') == state))

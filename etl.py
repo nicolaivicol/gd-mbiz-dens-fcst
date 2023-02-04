@@ -64,3 +64,8 @@ def load_data():
 
     return df_train, df_test, df_census
 
+
+
+
+
+

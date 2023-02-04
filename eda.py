@@ -74,6 +74,8 @@ set_display_options()
 
 log = logging.getLogger('eda.py')
 
+config.MAKE_PLOTS = True
+
 # %%
 '''
 <a id="load_data"></a> 
