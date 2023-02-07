@@ -23,7 +23,7 @@ class TestPlotManyForecasts(unittest.TestCase):
                 'damping_trend_min': 0.95,
                 'damping_trend_max': 0.98,
             })
-        df_fcsts_cv, metrics_cv = fcster.cv(periods_test=3, include_last_date=True)
+        df_fcsts_cv, metrics_cv = fcster.cv(periods_test=3, periods_out=7)
         fig = plot_fcsts_and_actual(df_ts.data, df_fcsts_cv)
         metrics_cv_str = Forecaster.metrics_cv_str_pretty(metrics_cv)
         fig.update_layout(title=f'Forecasts by HoltWintersSmModel', xaxis_title=metrics_cv_str)

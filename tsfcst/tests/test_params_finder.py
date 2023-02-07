@@ -30,7 +30,7 @@ class TestParamsFinder(unittest.TestCase):
             boxcox_lambda=best_params_median.pop('boxcox_lambda', None),
             params_model=best_params_median
         )
-        df_fcsts_cv, metrics_cv = fcster.cv(periods_test=3, include_last_date=True)
+        df_fcsts_cv, metrics_cv = fcster.cv(periods_test=3, periods_out=7)
 
         fig = plot_fcsts_and_actual(df_ts.data, df_fcsts_cv)
         metrics_cv_str = Forecaster.metrics_cv_str_pretty(metrics_cv)

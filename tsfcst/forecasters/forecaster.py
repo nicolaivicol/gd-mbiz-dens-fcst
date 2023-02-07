@@ -3,10 +3,10 @@ import numpy as np
 import pandas as pd
 import warnings
 from typing import List, Dict, Union
-from datetime import timedelta
 import copy
 from scipy.special import boxcox1p, inv_boxcox1p
-from sklearn.preprocessing import MinMaxScaler
+# from sklearn.preprocessing import MinMaxScaler
+
 from tsfcst.forecasters.inventory import FORECASTERS
 from tsfcst.time_series import TsData
 from tsfcst.models.inventory import MODELS
@@ -58,7 +58,6 @@ class Forecaster:
         self.freq_model = freq_model
 
         self.params_model = params_model if params_model is not None else {}
-        # self.params_model.update(freq=self.freq_model)
 
         # data transformation before train
         self.params = {}
@@ -98,7 +97,6 @@ class Forecaster:
         ]
         return trial_params_
 
-
     def fit(self, train_date=None):
         self._data_train = self._prep_data_train(train_date=train_date)
         self._data_exog_train = self._prep_data_exog_train(train_date=train_date)
@@ -112,23 +110,25 @@ class Forecaster:
         df_fcst = self._prep_forecast_df(ts_pred, train_date, forecast_end)
         return df_fcst
 
-    def cv(self, train_dates_n=None, train_dates_freq=None, periods_ahead=None, periods_test=0, include_last_date=False):
-        train_dates_n, train_dates_freq, periods_ahead = \
-            self._handle_cv_args(train_dates_n, train_dates_freq, periods_ahead)
-        train_dates, test_start, last_date = \
-            self._handle_cv_dates(train_dates_n, train_dates_freq, periods_ahead, periods_test, include_last_date)
+    def cv(self, n_train_dates=None, step_train_dates=None, periods_val=None, periods_test=0, periods_out=0):
+
+        n_train_dates, step_train_dates, periods_val = \
+            self._handle_cv_args(n_train_dates, step_train_dates, periods_val)
+        train_dates, test_start, last_date, periods_fcst = \
+            self._handle_cv_dates(n_train_dates, step_train_dates, periods_val, periods_test, periods_out)
+
         t, v, f = self.time_name, self.target_name, self.forecast_name
         df_fcsts_cv, df_fits_cv = pd.DataFrame({t: []}), pd.DataFrame({t: []})
 
-        for td in train_dates:
-            # keeps forecasts on validation
-            df_fcst = self.forecast(train_date=td, periods_ahead=periods_ahead)
+        for td, p in zip(train_dates, periods_fcst):
+            # keeps forecasts on validation / test / out
+            df_fcst = self.forecast(train_date=td, periods_ahead=p)
             df_fcst.rename(columns={f: f"{f}_{td.strftime('%Y%m%d')}"}, inplace=True)
             df_fcsts_cv = pd.merge(df_fcsts_cv, df_fcst, how='outer', on=[self.time_name])
             # keep fitted values
             df_fit = self.model.fitted_values().data
             df_fit.rename(columns={'value': f"fit_{td.strftime('%Y%m%d')}"}, inplace=True)
-            df_fit = df_fit.tail(periods_ahead)
+            df_fit = df_fit.tail(periods_val)
             df_fits_cv = pd.merge(df_fits_cv, df_fit, how='outer', on=[self.time_name])
 
         df_fcsts_cv.sort_values(by=t, inplace=True)
@@ -136,13 +136,13 @@ class Forecaster:
 
         metrics_cv = {}
 
-        # calculate metrics of CV folds (out of sample)
+        # calculate metrics on the validation folds (out-of-sample)
         cols_valid = [f"{f}_{td.strftime('%Y%m%d')}" for td in train_dates if td not in [test_start, last_date]]
         metrics_val = calc_fcst_error_metrics(self.data.data[[t, v]], df_fcsts_cv[[t] + cols_valid], time_name=t, target_name=v)
         metrics_val = {k + '_val': v for k, v in metrics_val.items()}
         metrics_cv.update(metrics_val)
 
-        # calculate metrics on the test fold (out of sample, last fold)
+        # calculate metrics on the test fold (out-of-sample)
         if periods_test > 0:
             cols_test = [t] + [f"{f}_{test_start.strftime('%Y%m%d')}"]
             metrics_test = calc_fcst_error_metrics(self.data.data[[t, v]], df_fcsts_cv[cols_test], time_name=t, target_name=v)
@@ -158,37 +158,40 @@ class Forecaster:
         self.df_fcsts_cv, self.metrics_cv = df_fcsts_cv, metrics_cv
         return df_fcsts_cv, metrics_cv
 
-    def _handle_cv_args(self, train_dates_n, train_dates_freq, periods_ahead):
-        if train_dates_n is None and train_dates_freq is None and periods_ahead is None:
-            defaults = {'D': (5, 28, 28), 'W': (5, 4, 4), 'M': (3, 2, 5), 'MS': (3, 2, 5),}
-            train_dates_n, train_dates_freq, periods_ahead = defaults[self.freq_model]
-        return train_dates_n, train_dates_freq, periods_ahead
+    def _handle_cv_args(self, n_train_dates, step_train_dates, periods_val):
+        if n_train_dates is None and step_train_dates is None and periods_val is None:
+            defaults = {'D': (5, 28, 28), 'W': (5, 4, 4), 'M': (3, 2, 5), 'MS': (3, 2, 5)}
+            n_train_dates, step_train_dates, periods_val = defaults[self.freq_model]
+        return n_train_dates, step_train_dates, periods_val
 
-    def _handle_cv_dates(self, train_dates_n, train_dates_freq, periods_ahead, periods_test, include_last_date):
+    def _handle_cv_dates(self, n_train_dates, step_train_dates, periods_val, periods_test, periods_out):
         target_not_na = ~np.isnan(self.data.target)
         last_date = pd.to_datetime(np.max(self.data.time[target_not_na]))
         intrvl_name = TsData.freq_to_interval_name(self.freq_model)
         test_start = last_date - pd.DateOffset(**{intrvl_name: periods_test})
-        train_dates = [test_start - pd.DateOffset(**{intrvl_name: periods_ahead + i * train_dates_freq})
-                       for i in range(train_dates_n)]
+        train_dates = [test_start - pd.DateOffset(**{intrvl_name: periods_val + i * step_train_dates})
+                       for i in range(n_train_dates)]
+        train_dates.sort()
 
-        min_req_data_points = self._min_required_obs(self.freq_model)
-        min_train_date = min(self.data.time) + pd.DateOffset(**{intrvl_name: min_req_data_points})
+        min_req_data_obs = self._min_required_obs(self.freq_model)
+        min_train_date = min(self.data.time) + pd.DateOffset(**{intrvl_name: min_req_data_obs})
         train_dates = [td for td in train_dates if td > min_train_date]
 
         if len(train_dates) == 0:
             raise AssertionError(f"all train dates are before {min_train_date.strftime('%Y-%m-%d')} - the date "
-                                 f"that ensures at least {min_req_data_points} data points for training")
+                                 f"that ensures at least {min_req_data_obs} data points for training")
+
+        periods_fcst = [periods_val] * len(train_dates)
 
         if periods_test > 0:
             train_dates.append(test_start)
+            periods_fcst.append(max(periods_val, periods_test))
 
-        if include_last_date:
+        if periods_out > 0:
             train_dates.append(last_date)
+            periods_fcst.append(periods_out)
 
-        train_dates.sort()
-
-        return train_dates, test_start, last_date
+        return train_dates, test_start, last_date, periods_fcst
 
     @staticmethod
     def _min_required_obs(freq) -> int:

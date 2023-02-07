@@ -34,9 +34,9 @@ class ConfigSelector:
 
     def select(
             self,
-            train_dates_n=6,
-            train_dates_freq=60,
-            periods_ahead=90,
+            n_train_dates=3,
+            step_train_dates=2,
+            periods_ahead=5,
             min_train_size=24,
             metric='smape_avg',
     ) -> str:
@@ -47,7 +47,7 @@ class ConfigSelector:
             possible = self._filter_out_unfit_configs(possible)
 
         if len(possible) > 1:
-            possible = self._select_by_cv(possible, train_dates_n, train_dates_freq, periods_ahead, min_train_size, metric)
+            possible = self._select_by_cv(possible, n_train_dates, step_train_dates, periods_ahead, min_train_size, metric)
 
         # if len(possible) > 1 and self.use_model_for_error() and self.cv_res is not None:
         #     possible = self._select_by_model(metric)
