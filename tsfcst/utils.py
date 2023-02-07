@@ -154,26 +154,6 @@ def plot_fcsts_and_actual(df_ts, df_fcsts, time_name='date', target_name='value'
     df = pd.merge(df_fcsts, df_ts, how='outer', on=[time_name]).sort_values(by=[time_name])
     cols_fcst = [c for c in df_fcsts.columns if c is not time_name]
 
-    # if freq.upper() in ['W', 'M', 'MS']:
-    #     days_in_period = {'W': 7, 'M': 30}[freq.upper()]
-    #     lastdate = np.max(df_ts[time_name])
-    #     df['agg_period'] = np.floor(((df[time_name] - lastdate).dt.days - 1).div(days_in_period))
-    #
-    #     agg_dict = {time_name: np.min}
-    #     for c in [target_name] + cols_fcst:
-    #         agg_dict[c] = np.nansum
-    #     df_sum = df.groupby(['agg_period']).agg(agg_dict)
-    #
-    #     agg_dict = {time_name: np.min}
-    #     for c in [target_name] + cols_fcst:
-    #         agg_dict[c] = lambda x: np.sum(~np.isnan(x))
-    #     df_n = df.groupby(['agg_period']).agg(agg_dict)
-    #
-    #     for c in [target_name] + cols_fcst:
-    #         df_sum.loc[df_n[c] < days_in_period, c] = np.nan
-    #
-    #     df = df_sum
-
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(

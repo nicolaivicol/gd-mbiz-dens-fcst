@@ -40,9 +40,9 @@ class TsModel(ABC):
         return {}
 
     @staticmethod
-    def trial_params(trial) -> Dict:
-        """ Paramaters range/choices to try by optuna """
-        return {}
+    def trial_params() -> List[Dict]:
+        """ Parameters range/choices to try with optuna. """
+        raise NotImplementedError('implement trial_params()')
 
     def _time_range_predict(self, steps):
         forecast_start = np.max(self.data.time) + pd.DateOffset(**{self.data.interval_name: 1})

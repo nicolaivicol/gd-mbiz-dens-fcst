@@ -73,13 +73,13 @@ class ProphetModel(TsModel):
         }
 
     @staticmethod
-    def trial_params(trial):
-        params_trial = {
-            'growth': trial.suggest_categorical('growth', ['linear', 'flat']),
-            'n_changepoints': trial.suggest_int('n_changepoints', 0, 5),
-            'changepoint_range': trial.suggest_float('changepoint_range', 0.70, 1.0),
-            'changepoint_prior_scale': trial.suggest_float('changepoint_prior_scale', 0.001, 0.99, log=True),
-            'yearly_seasonality': trial.suggest_categorical('yearly_seasonality', [True, False]),
-            'seasonality_prior_scale': trial.suggest_float('seasonality_prior_scale', 0.001, 10, log=True),
-        }
+    def trial_params():
+        params_trial = [
+            dict(name='growth', type='categorical', choices=['linear', 'flat']),
+            dict(name='n_changepoints', type='int', low=0, high=5),
+            dict(name='changepoint_range', type='float', low=0.70, high=1.0),
+            dict(name='changepoint_prior_scale', type='float', low=0.001, high=1.0, log=True),
+            dict(name='yearly_seasonality', type='categorical', choices=[True, False]),
+            dict(name='seasonality_prior_scale', type='float', low=0.001, high=10.0, log=True),
+        ]
         return params_trial

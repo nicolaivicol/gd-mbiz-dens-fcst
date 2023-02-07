@@ -84,16 +84,16 @@ class HoltWintersSmModel(TsModel):
         }
 
     @staticmethod
-    def trial_params(trial):
-        params_trial = {
-            # 'trend': trial.suggest_categorical('trend', ['add', 'mul']),
-            'damped_trend': trial.suggest_categorical('damped_trend', [True, False]),
-            'smoothing_level_max': trial.suggest_float('smoothing_level_max', 0.0001, 0.33, log=True),
-            'smoothing_trend_max': trial.suggest_float('smoothing_trend_max', 0.0001, 0.33, log=True),
-            'smoothing_seasonal_max': trial.suggest_float('smoothing_seasonal_max', 0.0001, 0.33, log=True),
-            'damping_trend_min': trial.suggest_float('damping_trend_min', 0.70, 0.91),
-            'damping_trend_max': trial.suggest_float('damping_trend_max', 0.95, 0.995),
-        }
+    def trial_params():
+        params_trial = [
+            # dict(name='trend', type='categorical', choices=['add', 'mul']),
+            dict(name='damped_trend', type='categorical', choices=[True, False]),
+            dict(name='smoothing_level_max', type='float', low=0.0001, high=0.33, log=True),
+            dict(name='smoothing_trend_max', type='float', low=0.0001, high=0.33, log=True),
+            dict(name='smoothing_seasonal_max', type='float', low=0.0001, high=0.33, log=True),
+            dict(name='damping_trend_min', type='float', low=0.70, high=0.94),
+            dict(name='damping_trend_max', type='float', low=0.95, high=0.995),
+        ]
         return params_trial
 
     def _initial_params(self):

@@ -2,7 +2,7 @@ import math
 import numpy as np
 import pandas as pd
 import warnings
-from typing import List, Optional, Union, cast
+from typing import List, Dict, Union
 from datetime import timedelta
 import copy
 from scipy.special import boxcox1p, inv_boxcox1p
@@ -92,11 +92,12 @@ class Forecaster:
         return cls(model_cls=MODELS[config['model_name']], data=data, **config)
 
     @staticmethod
-    def trial_params(trial):
-        params_trial = {
-            'boxcox_lambda': trial.suggest_float('boxcox_lambda', 0.0, 1.0),
-        }
-        return params_trial
+    def trial_params() -> List[Dict]:
+        trial_params_ = [
+            dict(name='boxcox_lambda', type='float', low=0.0, high=1.0),
+        ]
+        return trial_params_
+
 
     def fit(self, train_date=None):
         self._data_train = self._prep_data_train(train_date=train_date)

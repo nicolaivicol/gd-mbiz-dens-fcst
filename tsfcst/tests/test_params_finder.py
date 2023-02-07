@@ -1,4 +1,3 @@
-import json
 import unittest
 import plotly.offline as py
 
@@ -12,18 +11,18 @@ from tsfcst.utils import plot_fcsts_and_actual
 class TestParamsFinder(unittest.TestCase):
 
     def test_ParamsFinder(self):
-        model_cls = ProphetModel
+        model_cls = HoltWintersSmModel
         df_ts = TsData.sample_monthly()
 
         ParamsFinder.model_cls = model_cls
         ParamsFinder.data = df_ts
-        df_cv_results, best_params = ParamsFinder.tune_hyper_params_w_optuna()
+        df_trials, best_params = ParamsFinder.find_best(n_trials=100, use_cache=True)
         print('best_params: \n' + str(best_params))
 
-        best_metric, best_params_median = ParamsFinder.best_params_top_median(df_cv_results)
+        best_metric, best_params_median = ParamsFinder.best_params_top_median(df_trials)
         print('best_params_median: \n' + str(best_params_median))
 
-        ParamsFinder.plot_parallel_optuna_res(df_cv_results.head(int(len(df_cv_results) * 0.33)))
+        ParamsFinder.plot_parallel_optuna_res(df_trials.head(int(len(df_trials) * 0.33)))
 
         fcster = Forecaster(
             model_cls=model_cls,

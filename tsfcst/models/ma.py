@@ -38,9 +38,9 @@ class MovingAverageModel(TsModel):
         }
 
     @staticmethod
-    def trial_params(trial):
-        params_trial = {
-            'average': trial.suggest_categorical('average', ['simple', 'exponential', 'weighted']),
-            'window': trial.suggest_int('window', 1, 24),
-        }
+    def trial_params():
+        params_trial = [
+            dict(name='average', type='categorical', choices=['simple', 'exponential', 'weighted']),
+            dict(name='window', type='int', low=1, high=24),
+        ]
         return params_trial
