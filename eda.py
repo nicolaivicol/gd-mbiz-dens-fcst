@@ -393,6 +393,10 @@ make_plots_cfips(df_train, 'Wyoming')
 - [2] [GoDaddy EDA](https://www.kaggle.com/code/michaelbryantds/godaddy-eda#Distribution-of-correlations-between-microbusiness_density-and-date-seperated-by-county)
 - [3] [Counties boundaries from opendatasoft.com](https://public.opendatasoft.com/explore/dataset/us-county-boundaries/table/?disjunctive.statefp&disjunctive.countyfp&disjunctive.name&disjunctive.namelsad&disjunctive.stusab&disjunctive.state_name&location=7,34.27084,-86.57227&basemap=jawg.light)
 - [4] [What is public/private ratio split?](https://www.kaggle.com/competitions/godaddy-microbusiness-density-forecasting/discussion/372625)
+- [5] [How do you approach validation for such a small dataset?](https://www.kaggle.com/competitions/godaddy-microbusiness-density-forecasting/discussion/377699#2097391)
+- [6] [Comment: Chris Deotte](https://www.kaggle.com/competitions/godaddy-microbusiness-density-forecasting/discussion/381038#2114357)
+- [7] [Custom dataset](https://www.kaggle.com/datasets/kaggleqrdl/gd2022datasets?select=census_region_housing_starts.csv)
+- [8] [Population data for GoDaddy](https://www.kaggle.com/datasets/ruslansadykov/population-data-for-godaddy)   
 '''
 
 
