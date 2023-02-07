@@ -35,3 +35,6 @@ PLOT_MARGINS_SMALL = dict(l=25, r=25, t=25, b=10)
 PLOT_MARGINS_MEDIUM = dict(l=30, r=30, t=30, b=25)
 
 MAKE_PLOTS = False
+
+FILE_TUNE_ALL_PARAMS_COMBS_CACHE = f'{DIR_ARTIFACTS}/tune_all_params_combs_cache.csv'
+FILE_TUNE_PARAMS_BEST = f'{DIR_ARTIFACTS}/tune_params_best_cache.json'
