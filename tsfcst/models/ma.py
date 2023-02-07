@@ -1,0 +1,46 @@
+import numpy as np
+from tsfcst.models.abstract_model import TsModel
+
+
+class MovingAverageModel(TsModel):
+
+    def __init__(self, data, params, **kwargs):
+        super().__init__(data, params)
+        self.ma = None
+        self.last_value = None
+
+    def fit(self):
+        n, avg = self.params['window'], self.params['average']
+
+        if avg == 'simple':
+            self.ma = self.data.target.rolling(n, min_periods=1).mean()
+        elif avg == 'exponential':
+            self.ma = self.data.target.ewm(span=n).mean()
+        elif avg == 'weighted':
+            weights = np.arange(1, n+1)
+            self.ma = self.data.target.rolling(n).apply(lambda prices: np.dot(prices, weights) / weights.sum(), raw=True)
+        else:
+            raise ValueError(f'average type: {avg} not recognized. supported types: simple, exponential, weighted')
+
+        self.last_value = self.ma[len(self.ma)-1]
+
+    def _predict(self, steps):
+        return np.array(np.repeat(self.last_value, steps))
+
+    def _fitted_values(self):
+        return np.array(self.ma)
+
+    @staticmethod
+    def default_params():
+        return {
+            'average': 'simple',
+            'window': 12
+        }
+
+    @staticmethod
+    def trial_params(trial):
+        params_trial = {
+            'average': trial.suggest_categorical('average', ['simple', 'exponential', 'weighted']),
+            'window': trial.suggest_int('window', 1, 24),
+        }
+        return params_trial
