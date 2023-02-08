@@ -38,14 +38,15 @@ def smape(y_true, y_pred, weight=None, ignore_na=True):
     return r
 
 
-def smape_cv_opt(smape_avg_val, smape_std_val, smape_avg_fit, smape_std_fit, maprev_val, **kwargs):
+def smape_cv_opt(smape_avg_val, smape_std_val, smape_avg_fit, smape_std_fit, maprev_val, irreg_val, irreg_fit, **kwargs):
     smape_weighted_fit_val = 0.8 * smape_avg_val + 0.2 * smape_avg_fit
     std_weighted_fit_val = 0.8 * smape_std_val + 0.2 * smape_std_fit
     diff_fit_val = smape_avg_fit - smape_avg_val
     penalty_std = max(0.50 * std_weighted_fit_val, 0.2 * std_weighted_fit_val ** 2)
     penalty_diff = 0.10 * max(0, -diff_fit_val) + 0.10 * max(0, diff_fit_val) ** 2  # 0.00 * max(0, -diff_fit_val) ** 2
     penalty_rev = 0.05 * maprev_val ** 2
-    return smape_weighted_fit_val + penalty_std + penalty_diff + penalty_rev
+    penalty_irreg = 0.05 * (0.8 * irreg_val + 0.2 * irreg_fit)
+    return smape_weighted_fit_val + penalty_std + penalty_diff + penalty_rev + penalty_irreg
 
 
 def mape(y_true, y_pred, weight=None, ignore_na=True, sub_zero_denom='average'):
@@ -102,6 +103,11 @@ def mape_agg(y_true, y_pred, agg_chunk_size=30, sub_zero_denom='average'):
     return r
 
 
+def irreg_rate(x):
+    x = np.array(x)
+    return np.sqrt(np.nanmean(np.square((x[1:] - x[:-1]) / ((np.abs(x[:-1]) + np.abs(x[1:]) + 0.0001) / 2))))*100
+
+
 def calc_fcst_error_metrics(df_ts, df_fcsts, time_name='date', target_name='value'):
 
     df = pd.merge(df_fcsts, df_ts[[time_name, target_name]], on=[time_name])
@@ -109,8 +115,10 @@ def calc_fcst_error_metrics(df_ts, df_fcsts, time_name='date', target_name='valu
     cols_fcst = [c for c in df_fcsts.columns if c is not time_name]
 
     smape_ = []
+    irreg_ = []
     for c in cols_fcst:
         smape_.append(smape(df[target_name], df[c]))
+        irreg_.append(irreg_rate(df[c]))
 
     # symmetric mean absolute percentage error, avg and std
     smape_avg = round(np.nanmean(smape_), 4)
@@ -122,11 +130,13 @@ def calc_fcst_error_metrics(df_ts, df_fcsts, time_name='date', target_name='valu
     fcst_max = df[cols_fcst].max(axis=1)
 
     if any(fcst_avg == 0):
-        maprev = round(np.nanmean((fcst_max - fcst_min) / fcst_avg) * 100, 4)
+        maprev = round(np.nanmean((fcst_max - fcst_min) / np.mean(np.abs(fcst_avg)+0.00001)) * 100, 4)
     else:
         maprev = round(np.nanmean((fcst_max - fcst_min)/np.abs(fcst_avg)) * 100, 4)
 
-    return {'smape_avg': smape_avg, 'smape_std': smape_std, 'maprev': maprev}
+    irreg = round(np.nanmean(irreg_), 4)
+
+    return {'smape_avg': smape_avg, 'smape_std': smape_std, 'maprev': maprev, 'irreg': irreg}
 
 
 def plotly_add_time_slider(fig, visible=True):
@@ -175,7 +185,11 @@ def plot_fcsts_and_actual(df_ts, df_fcsts, time_name='date', target_name='value'
                 opacity=0.4 + i * 0.4 / len(cols_fcst),
                 line=dict(color='red', width=2))
         )
+    min_ = np.min(df[[target_name]+cols_fcst].min(axis=1, skipna=True))
+    max_ = np.max(df[[target_name] + cols_fcst].max(axis=1, skipna=True))
     fig.update_layout(autosize=True, legend=dict(x=0, y=1, bgcolor='rgba(0,0,0,0)'),
+                      yaxis_range=[min(max(0.95*min_, 0.90*max_), 0.98*min_),
+                                   max(min(1.05*max_, 1.10*min_), 1.02*max_)],
                       height=650, width=1200, margin=dict(l=25, r=25, t=25, b=25))
     # py.plot(fig)
     return fig

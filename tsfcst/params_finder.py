@@ -54,8 +54,8 @@ class ParamsFinder:
             try:
                 df_trials = pd.read_csv(file_df_trials)
                 with open(file_best_params, 'r') as f:
-                    best_params = json.load(f)
-                return df_trials, best_params
+                    best_result = json.load(f)
+                return df_trials, best_result
             except Exception as e:
                 log.warning('loading from cache failed: ' + str(e))
 
@@ -66,18 +66,19 @@ class ParamsFinder:
         metric_names = ['smape_cv_opt']
         df_trials = pd.DataFrame([dict(zip(metric_names, trial.values), **trial.params) for trial in study.trials])
         df_trials = df_trials.sort_values(by=['smape_cv_opt'], ascending=True).reset_index(drop=True)
-        best_params = study.best_params
+        best_result = {'best_value': study.best_value, 'best_params': study.best_params}
 
         # cache
         df_trials.to_csv(file_df_trials, index=False, float_format='%.4f')
         with open(file_best_params, 'w') as f:
-            json.dump(best_params, f, indent=2)
+            json.dump(best_result, f, indent=2)
 
-        log.info('find_best() - best parameters found: \n' + json.dumps(best_params, indent=2))
+        log.info(f'find_best() - best parameters found: \n'
+                 + json.dumps(best_result, indent=2))
         log.info('find_best() - top 25 trials: \n' +
                  tabulate(df_trials.head(25), headers=df_trials.columns, showindex=False))
 
-        return df_trials, best_params
+        return df_trials, best_result
 
     @staticmethod
     def best_params_top_median(df_cv_results, min_combs=1, max_combs=15, th_abs=0.50, th_prc=0.10):
@@ -131,7 +132,7 @@ class ParamsFinder:
         return params_trial
 
     @staticmethod
-    def plot_parallel_optuna_res(df=None, use_express=False):
+    def plot_parallel_optuna_res(df=None, use_express=False, plot=False):
         """ https://plotly.com/python/parallel-coordinates-plot/ """
 
         import plotly.offline as py
@@ -157,6 +158,8 @@ class ParamsFinder:
             pardef = pardefs.get(name_)
             if pardef is None:
                 dim_ = dict(label=name_, values=df[name_])
+                if name_ == 'smape_cv_opt':
+                    dim_['range'] = [0, max(5, np.max(df[name_]))]
             elif pardef['type'] == 'categorical':
                 map_ = {v: i for i, v in enumerate(pardef['choices'])}
                 vals_numeric = [map_[v] for v in df[name_]]
@@ -198,8 +201,12 @@ class ParamsFinder:
             )
         )
 
-        # py.iplot(fig)
-        py.plot(fig)
+        if plot:
+            # py.iplot(fig)
+            py.plot(fig)
+
+        return fig
+
 
     @staticmethod
     def trial_params_definitions() -> Dict:

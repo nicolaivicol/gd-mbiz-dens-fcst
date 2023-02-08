@@ -12,27 +12,27 @@ class TestParamsFinder(unittest.TestCase):
 
     def test_ParamsFinder(self):
         model_cls = HoltWintersSmModel
-        df_ts = TsData.sample_monthly()
+        ts = TsData.sample_monthly()
 
         ParamsFinder.model_cls = model_cls
-        ParamsFinder.data = df_ts
-        df_trials, best_params = ParamsFinder.find_best(n_trials=100, use_cache=True)
-        print('best_params: \n' + str(best_params))
+        ParamsFinder.data = ts
+        df_trials, best_result = ParamsFinder.find_best(n_trials=100, use_cache=True)
+        print('best_params: \n' + str(best_result))
 
         best_metric, best_params_median = ParamsFinder.best_params_top_median(df_trials)
         print('best_params_median: \n' + str(best_params_median))
 
-        ParamsFinder.plot_parallel_optuna_res(df_trials.head(int(len(df_trials) * 0.33)))
+        _ = ParamsFinder.plot_parallel_optuna_res(df_trials.head(int(len(df_trials) * 0.33)), plot=True)
 
         fcster = Forecaster(
             model_cls=model_cls,
-            data=df_ts,
+            data=ts,
             boxcox_lambda=best_params_median.pop('boxcox_lambda', None),
             params_model=best_params_median
         )
         df_fcsts_cv, metrics_cv = fcster.cv(periods_test=3, periods_out=7)
 
-        fig = plot_fcsts_and_actual(df_ts.data, df_fcsts_cv)
+        fig = plot_fcsts_and_actual(ts.data, df_fcsts_cv)
         metrics_cv_str = Forecaster.metrics_cv_str_pretty(metrics_cv)
         print(metrics_cv_str)
         fig.update_layout(title=f'Forecasts by best model={model_cls.__name__}', xaxis_title=metrics_cv_str)

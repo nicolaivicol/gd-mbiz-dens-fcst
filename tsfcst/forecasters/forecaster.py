@@ -204,7 +204,8 @@ class Forecaster:
         s = (f"smape_fit={metrics_cv['smape_avg_fit']:.3f}±{metrics_cv['smape_std_fit']:.3f}"
              f" | smape_val={metrics_cv['smape_avg_val']:.3f}±{metrics_cv['smape_std_val']:.3f}"
              f" | smape_test={metrics_cv['smape_avg_test']:.3f}"
-             f" | maprev_val={metrics_cv['maprev_val']:.3f}")
+             f" | maprev_val={metrics_cv['maprev_val']:.3f}"
+             f" | irreg_val={metrics_cv['irreg_val']:.3f}")
         return s
 
     def _prep_forecast_df(self, ts_fcst: TsData, train_date=None, forecast_end=None):

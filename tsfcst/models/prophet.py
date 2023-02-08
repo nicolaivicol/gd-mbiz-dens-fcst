@@ -61,14 +61,14 @@ class ProphetModel(TsModel):
     def default_params():
         return {
             'growth': 'linear',
-            'n_changepoints': 4,
+            'n_changepoints': 3,
             'changepoint_range': 0.95,
             'changepoint_prior_scale': 0.05,
-            'yearly_seasonality': 'auto',
+            'yearly_seasonality': False,
             'weekly_seasonality': False,
             'daily_seasonality': False,
             'seasonality_mode': 'additive',
-            'seasonality_prior_scale': 5,
+            'seasonality_prior_scale': 2,
             'holidays_prior_scale': 0,
         }
 
