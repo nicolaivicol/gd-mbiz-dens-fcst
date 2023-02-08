@@ -6,26 +6,32 @@ from statsmodels.tsa.holtwinters import ExponentialSmoothing
 class HoltWintersSmModel(TsModel):
     """
     Holt-Winters model with statsmodels implementation
+
     https://www.statsmodels.org/stable/generated/statsmodels.tsa.holtwinters.ExponentialSmoothing.html
     https://otexts.com/fpp2/holt-winters.html
 
     Parameters
+    trend:
+        'add', 'mul', None or any other value for no trend
+    damped_trend:
+        True, False
+    seasonal:
+        add', 'mul', None or any other value for no seasonality
+    seasonal_periods:
+        number of periods in a season
     smoothing_level (alpha):
-        The smoothing factor for the level component.
-        A higher alpha places more weight on recent observations and a lower
-        alpha places more weight on historical observations.
+        is for level smoothing, larger alpha puts more weight on recent levels (observations),
+        lower alpha makes the level change smoother (slower)
     smoothing_trend (beta):
-        The smoothing factor for the trend component.
-        A higher beta will result in a stronger reaction to changes in the
-        trend, while a lower beta will result in a smoother trend estimate.
+        is for trend smoothing, larger beta puts more weight on recent trends, lower beta makes the trend smoother
     smoothing_seasonal (gamma):
-        The smoothing factor for the seasonal component.
-        A higher gamma will result in a stronger reaction to changes in the
-        seasonal component, while a lower gamma will result in a smoother seasonal estimate.
+        is for seasonality smoothing, larger gamma puts more weight on recent seasons,
+        lower gamma makes the seasonality pattern more stable and smoother
     damping_trend (phi):
-        The damping factor, used to control the magnitude of the seasonal fluctuations.
-        A value of 1 means that the seasonal fluctuations are fully damped,
-        and a value of 0 means no damping.
+        is for trend damping, lower phi produces more damping (0: growth is totally damped), larger phi
+        produces less damping and the trend can have large growth rates (1: trend not damped at all),
+        this parameter is particularly sensitive in the range [0.90, 1.00],
+        the sensitivity / effect grows non-linearly as it approaches 1.00
     """
 
     def __init__(self, data, params, **kwargs):
@@ -45,7 +51,7 @@ class HoltWintersSmModel(TsModel):
             initialization_method=initialization_method,
             dates=self.data.time,
             freq=self.data.freq,
-            initial_trend=initial_trend,
+            initial_trend=initial_trend if self.params['trend'] is not None else None,
             initial_level=initial_level,
             initial_seasonal=initial_seasonal if self.params['seasonal'] is not None else None,
             bounds={
@@ -67,33 +73,31 @@ class HoltWintersSmModel(TsModel):
         if self.params['trend'] not in ['add', 'mul']:
             self.params['trend'] = None
             self.params['damped_trend'] = False
+            self.params['smoothing_trend_min'] = 0
+            self.params['smoothing_trend_max'] = 0
 
         if self.params['seasonal'] not in ['add', 'mul']:
             self.params['seasonal'] = None
+            self.params['smoothing_seasonal_min'] = 0
+            self.params['smoothing_seasonal_max'] = 0
+
+        if not self.params['damped_trend']:
+            self.params['damping_trend_min'] = 1
+            self.params['damping_trend_max'] = 1
 
     @staticmethod
     def default_params():
         return {
-            'trend': 'add',  # 'add', 'mul', None or any other value for no trend
-            'damped_trend': True,  # True, False
-            'seasonal': 'add',  # 'add', 'mul', None or any other value for no seasonality
-            'seasonal_periods': 12,  # number of periods in a season
-            # alpha: is for level smoothing, larger alpha puts more weight on recent levels,
-            #       lower alpha makes the level change smoother
+            'trend': 'add',
+            'damped_trend': True,
+            'seasonal': 'add',
+            'seasonal_periods': 12,
             'smoothing_level_min': 0,
             'smoothing_level_max': 0.05,
-            # beta: is for trend smoothing, larger beta puts more weight on recent trends,
-            #       lower beta makes the trend smoother
             'smoothing_trend_min': 0,
             'smoothing_trend_max': 0.04,
-            # gamma: is for seasonality, larger gamma puts more weight on recent seasons,
-            #       lower gamma makes the seasonality pattern more stable and smoother
             'smoothing_seasonal_min': 0,
             'smoothing_seasonal_max': 0.05,
-            # phi: is for trend damping, lower phi produces more damping (0: growth is totally damped), larger phi
-            #       produces less damping and the trend can have large growth rates (1: trend not damped at all),
-            #       this parameter is particularly sensitive in the range [0.90, 1.00],
-            #       the sensitivity / effect grows non-linearly as it approaches 1.00
             'damping_trend_min': 0.90,
             'damping_trend_max': 0.98,
         }
