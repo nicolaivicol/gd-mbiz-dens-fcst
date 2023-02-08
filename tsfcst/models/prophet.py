@@ -18,9 +18,9 @@ class ProphetModel(TsModel):
 
     Parameters
     growth:
-        "linear" or "logistic".
-        "Linear" means the trend will grow at a constant rate
-        "logistic" means the growth rate will start high and then taper off over time.
+        "linear" (default): the trend will grow at a constant rate
+        "logistic": the growth rate will start high and then taper off over time.
+        "flat": no trend
     n_changepoints:
         This parameter specifies the number of changepoints to include in the trend component of the model.
         A changepoint represents a time when the rate of growth in the time series changes.
@@ -83,3 +83,20 @@ class ProphetModel(TsModel):
             dict(name='seasonality_prior_scale', type='float', low=0.001, high=10.0, log=True),
         ]
         return params_trial
+
+    def flexibility(self):
+        flexibility = 0
+
+        growth = {'flat': 0.5, 'linear': 1, 'multiplicative': 2}[self.model.growth]
+        changepoint_prior_scale = (growth * self.model.changepoint_prior_scale / 0.25) ** 2
+        flexibility += changepoint_prior_scale
+
+        flexibility += changepoint_prior_scale * (max(0, (self.model.changepoint_range - 0.80)) / 0.20) ** 2
+
+        seas = self.model.daily_seasonality + self.model.weekly_seasonality + self.model.yearly_seasonality
+
+        if seas > 0:
+            seas_mul = 0.5 + 1 * (self.model.seasonality_mode == 'multiplicative')
+            flexibility += (seas_mul * self.model.seasonality_prior_scale / 0.25) ** 2
+
+        return flexibility

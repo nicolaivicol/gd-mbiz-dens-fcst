@@ -9,6 +9,7 @@ from scipy.special import boxcox1p, inv_boxcox1p
 
 from tsfcst.forecasters.inventory import FORECASTERS
 from tsfcst.time_series import TsData
+from tsfcst.models.abstract_model import TsModel
 from tsfcst.models.inventory import MODELS
 from tsfcst.utils import (
     calc_fcst_error_metrics,
@@ -25,7 +26,7 @@ class Forecaster:
 
     def __init__(
             self,
-            model_cls: type,
+            model_cls: type(TsModel),
             data: Union[pd.DataFrame, TsData],
             data_exog: List[Union[pd.DataFrame, TsData]] = None,
             target_name: str = 'value',
@@ -78,7 +79,7 @@ class Forecaster:
         self._data_train = None     # data used for last fit()
         self._data_exog_train = None
         self._scaler = None         # min-max scaler
-        self.model = None           # fit model
+        self.model: TsModel = None  # fit model
 
         # set by cv()
         self.df_fcsts_cv = None

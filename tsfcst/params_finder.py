@@ -23,6 +23,7 @@ class ParamsFinder:
 
     model_cls: type(TsModel) = None
     data: TsData = None
+    reg_coef = 0.0
 
     @staticmethod
     def objective(trial: optuna.Trial):
@@ -40,7 +41,9 @@ class ParamsFinder:
             **params_trial_forecaster,
         )
         df_fcsts_cv, metrics_cv = fcster.cv(periods_test=3)
-        return smape_cv_opt(**metrics_cv)
+        smape_cv_opt_ = smape_cv_opt(**metrics_cv)
+        model_flexibility_ = fcster.model.flexibility()
+        return smape_cv_opt_ + ParamsFinder.reg_coef * model_flexibility_
 
     @staticmethod
     def find_best(n_trials=120, id_cache='tmp', use_cache=False) -> Tuple[pd.DataFrame, Dict]:

@@ -38,14 +38,15 @@ def smape(y_true, y_pred, weight=None, ignore_na=True):
     return r
 
 
-def smape_cv_opt(smape_avg_val, smape_std_val, smape_avg_fit, smape_std_fit, maprev_val, irreg_val, irreg_fit, **kwargs):
+def smape_cv_opt(smape_avg_val, smape_std_val, smape_avg_fit, smape_std_fit, maprev_val, irreg_val, irreg_fit,
+                 irreg_test=0, **kwargs):
     smape_weighted_fit_val = 0.8 * smape_avg_val + 0.2 * smape_avg_fit
     std_weighted_fit_val = 0.8 * smape_std_val + 0.2 * smape_std_fit
-    diff_fit_val = smape_avg_fit - smape_avg_val
     penalty_std = max(0.50 * std_weighted_fit_val, 0.2 * std_weighted_fit_val ** 2)
-    penalty_diff = 0.10 * max(0, -diff_fit_val) + 0.10 * max(0, diff_fit_val) ** 2  # 0.00 * max(0, -diff_fit_val) ** 2
+    diff_fit_val = smape_avg_fit - smape_avg_val
+    penalty_diff = 0.10 * max(0, -diff_fit_val) + 0.10 * max(0, diff_fit_val) ** 2
     penalty_rev = 0.05 * maprev_val ** 2
-    penalty_irreg = 0.05 * (0.8 * irreg_val + 0.2 * irreg_fit)
+    penalty_irreg = 0.05 * (0.6 * irreg_val + 0.2 * irreg_fit + 0.2 * irreg_test)
     return smape_weighted_fit_val + penalty_std + penalty_diff + penalty_rev + penalty_irreg
 
 

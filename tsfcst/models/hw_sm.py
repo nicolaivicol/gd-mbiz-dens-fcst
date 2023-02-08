@@ -30,6 +30,7 @@ class HoltWintersSmModel(TsModel):
 
     def __init__(self, data, params, **kwargs):
         super().__init__(data, params)
+        self.set_params()
         self.model = None
         self.model_fit = None
 
@@ -62,23 +63,37 @@ class HoltWintersSmModel(TsModel):
     def _fitted_values(self):
         return np.array(self.model_fit.fittedvalues)
 
+    def set_params(self):
+        if self.params['trend'] not in ['add', 'mul']:
+            self.params['trend'] = None
+            self.params['damped_trend'] = False
+
+        if self.params['seasonal'] not in ['add', 'mul']:
+            self.params['seasonal'] = None
+
     @staticmethod
     def default_params():
         return {
-            'trend': 'add',  # 'add' or 'mul'
-            'damped_trend': True,  # True or False
-            'seasonal': 'add',  # 'add' or 'mul'
+            'trend': 'add',  # 'add', 'mul', None or any other value for no trend
+            'damped_trend': True,  # True, False
+            'seasonal': 'add',  # 'add', 'mul', None or any other value for no seasonality
             'seasonal_periods': 12,  # number of periods in a season
-            # alpha: larger values of alpha indicate more weight on recent observations
+            # alpha: is for level smoothing, larger alpha puts more weight on recent levels,
+            #       lower alpha makes the level change smoother
             'smoothing_level_min': 0,
             'smoothing_level_max': 0.05,
-            # beta: larger values of beta indicate more weight on recent trends
+            # beta: is for trend smoothing, larger beta puts more weight on recent trends,
+            #       lower beta makes the trend smoother
             'smoothing_trend_min': 0,
             'smoothing_trend_max': 0.04,
-            # gamma: larger values of gamma indicate more weight on recent seasons
+            # gamma: is for seasonality, larger gamma puts more weight on recent seasons,
+            #       lower gamma makes the seasonality pattern more stable and smoother
             'smoothing_seasonal_min': 0,
             'smoothing_seasonal_max': 0.05,
-            # phi: larger values of phi indicate more damping
+            # phi: is for trend damping, lower phi produces more damping (0: growth is totally damped), larger phi
+            #       produces less damping and the trend can have large growth rates (1: trend not damped at all),
+            #       this parameter is particularly sensitive in the range [0.90, 1.00],
+            #       the sensitivity / effect grows non-linearly as it approaches 1.00
             'damping_trend_min': 0.90,
             'damping_trend_max': 0.98,
         }
@@ -86,7 +101,8 @@ class HoltWintersSmModel(TsModel):
     @staticmethod
     def trial_params():
         params_trial = [
-            # dict(name='trend', type='categorical', choices=['add', 'mul']),
+            dict(name='trend', type='categorical', choices=['add', 'no']),
+            dict(name='seasonality', type='categorical', choices=['add', 'no']),
             dict(name='damped_trend', type='categorical', choices=[True, False]),
             dict(name='smoothing_level_max', type='float', low=0.0001, high=0.33, log=True),
             dict(name='smoothing_trend_max', type='float', low=0.0001, high=0.33, log=True),
@@ -95,6 +111,31 @@ class HoltWintersSmModel(TsModel):
             dict(name='damping_trend_max', type='float', low=0.95, high=0.995),
         ]
         return params_trial
+
+    def flexibility(self):
+        flexibility = 0
+        flexibility += self.model_fit.params['smoothing_level'] ** 2
+
+        if self.model_fit.model.has_trend:
+            if self.model_fit.model.damped_trend is False:
+                not_damped_trend = 1
+            else:
+                not_damped_trend = self.model_fit.params['damping_trend'] ** 2
+
+            flexibility += not_damped_trend
+
+            if self.model_fit.model.trend == 'add':
+                flexibility += (1 + not_damped_trend) * self.model_fit.params['smoothing_trend'] ** 2
+            else:
+                flexibility += (2 + not_damped_trend) * self.model_fit.params['smoothing_trend'] ** 2
+
+        if self.model_fit.model.has_seasonal:
+            if self.model_fit.model.seasonal == 'add':
+                flexibility += self.model_fit.params['smoothing_seasonal'] ** 2
+            else:
+                flexibility += 2 * self.model_fit.params['smoothing_seasonal'] ** 2
+
+        return flexibility
 
     def _initial_params(self):
         """ handle the case when there are not enough observations for the 'heuristic' initialization """

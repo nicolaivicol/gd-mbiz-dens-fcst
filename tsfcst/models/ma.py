@@ -44,3 +44,9 @@ class MovingAverageModel(TsModel):
             dict(name='window', type='int', low=1, high=24),
         ]
         return params_trial
+
+    def flexibility(self):
+        flexibility = 0
+        avg = {'average': 1, 'weighted': 1.5, 'exponential': 2}[self.params['average']]
+        flexibility += avg * (1 - min(1, (self.params['window'] - 1) / min(100, self.data.periods_year)))
+        return flexibility

@@ -42,7 +42,11 @@ class TsModel(ABC):
     @staticmethod
     def trial_params() -> List[Dict]:
         """ Parameters range/choices to try with optuna. """
-        raise NotImplementedError('implement trial_params()')
+        raise NotImplementedError('trial_params() not implemented')
+
+    def flexibility(self) -> float:
+        """ Flexibility of the model. We can penalize flexibility to reduce overffiting. """
+        raise NotImplementedError('flexibility() not implemented')
 
     def _time_range_predict(self, steps):
         forecast_start = np.max(self.data.time) + pd.DateOffset(**{self.data.interval_name: 1})

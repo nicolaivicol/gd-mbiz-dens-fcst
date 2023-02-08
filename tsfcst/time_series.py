@@ -48,6 +48,14 @@ class TsData:
     def interval_name(self):
         return self.freq_to_interval_name(self.freq)
 
+    @staticmethod
+    def periods_in_year(freq: str):
+        return {'D': 365, 'W': 52, 'M': 12, 'MS': 12}[freq]
+
+    @property
+    def periods_year(self):
+        return self.periods_in_year(self.freq)
+
     def aggregate(self, to_freq) -> 'TsData':
         df = self.data.set_index(self.name_date)
         to_freq_num = self.freq_numeric(to_freq)
