@@ -46,13 +46,23 @@ class ParamsFinder:
         return smape_cv_opt_ + ParamsFinder.reg_coef * model_flexibility_
 
     @staticmethod
-    def find_best(n_trials=120, id_cache='tmp', use_cache=False) -> Tuple[pd.DataFrame, Dict]:
-        """ run many trials with various combinations of parameters to search for best parameters using optuna """
-
+    def get_file_names_cache(id_cache):
         file_df_trials = f'{config.DIR_CACHE_TUNE_HYPER_PARAMS_W_OPTUNA}/df_trials/{id_cache}.csv'
         file_best_params = f'{config.DIR_CACHE_TUNE_HYPER_PARAMS_W_OPTUNA}/best_params/{id_cache}.json'
+        return file_df_trials, file_best_params
 
-        if use_cache and os.path.exists(file_df_trials) and os.path.exists(file_best_params):
+    @staticmethod
+    def cache_exists(id_cache):
+        file_df_trials, file_best_params = ParamsFinder.get_file_names_cache(id_cache)
+        return os.path.exists(file_df_trials) and os.path.exists(file_best_params)
+
+    @staticmethod
+    def find_best(n_trials=100, id_cache='tmp', use_cache=False) -> Tuple[pd.DataFrame, Dict]:
+        """ run many trials with various combinations of parameters to search for best parameters using optuna """
+
+        file_df_trials, file_best_params = ParamsFinder.get_file_names_cache(id_cache)
+
+        if use_cache and ParamsFinder.cache_exists(id_cache):
             log.debug('find_best() - loading from cache')
             try:
                 df_trials = pd.read_csv(file_df_trials)

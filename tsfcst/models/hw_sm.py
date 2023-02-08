@@ -74,16 +74,16 @@ class HoltWintersSmModel(TsModel):
             self.params['trend'] = None
             self.params['damped_trend'] = False
             self.params['smoothing_trend_min'] = 0
-            self.params['smoothing_trend_max'] = 0
+            self.params['smoothing_trend_max'] = 0.0001
+
+        if not self.params['damped_trend']:
+            self.params['damping_trend_min'] = 0.995
+            self.params['damping_trend_max'] = 1
 
         if self.params['seasonal'] not in ['add', 'mul']:
             self.params['seasonal'] = None
             self.params['smoothing_seasonal_min'] = 0
-            self.params['smoothing_seasonal_max'] = 0
-
-        if not self.params['damped_trend']:
-            self.params['damping_trend_min'] = 1
-            self.params['damping_trend_max'] = 1
+            self.params['smoothing_seasonal_max'] = 0.0001
 
     @staticmethod
     def default_params():
