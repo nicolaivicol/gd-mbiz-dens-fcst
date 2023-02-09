@@ -15,14 +15,14 @@ FORECASTERS = {
         "freq_model": "MS",
     },
     "hw": {
-        "model_name": "hw_sm",
+        "model_name": "hw",
         "params_model": {
             "seasonal_periods": 12,
         },
         "freq_model": "MS",
     },
     "hw_flex_trend_no_seas": {
-        "model_name": "hw_sm",
+        "model_name": "hw",
         "params_model": {
             "seasonal": None,
             "smoothing_trend_max": 0.25,
@@ -31,7 +31,7 @@ FORECASTERS = {
         "freq_model": "MS",
     },
     "hw_flex_seas": {
-        "model_name": "hw_sm",
+        "model_name": "hw",
         "params_model": {
             "seasonal_periods": 12,
             "smoothing_seasonal_max": 0.20,
@@ -39,12 +39,12 @@ FORECASTERS = {
         "freq_model": "MS",
     },
     "hw_boxcox_0_10": {
-        "model_name": "hw_sm",
+        "model_name": "hw",
         "freq_model": "MS",
         "boxcox_lambda": 0.10,
     },
     "hw_boxcox_0_50": {
-        "model_name": "hw_sm",
+        "model_name": "hw",
         "params_model": {
             "seasonal_periods": 12,
             "smoothing_trend": (0.00, 0.03),

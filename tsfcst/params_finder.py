@@ -6,20 +6,22 @@ import logging
 from tabulate import tabulate
 import optuna
 from typing import List, Dict, Tuple
-# import copy
-# import plotly.offline as py
 
 import config
 from tsfcst.time_series import TsData
 from tsfcst.models.abstract_model import TsModel
 from tsfcst.forecasters.forecaster import Forecaster
-from tsfcst.models.inventory import MovingAverageModel, HoltWintersSmModel, ProphetModel
-from tsfcst.utils import smape_cv_opt  #, plot_fcsts_and_actual
+from tsfcst.models.inventory import MODELS
+from tsfcst.utils import smape_cv_opt
 
 log = logging.getLogger(os.path.basename(__file__))
 
 
 class ParamsFinder:
+    """
+    Find best hyper-parameters of the model based on CV. Search performed with optuna.
+    https://towardsdatascience.com/how-to-make-your-model-awesome-with-optuna-b56d490368af
+    """
 
     model_cls: type(TsModel) = None
     data: TsData = None
@@ -73,7 +75,11 @@ class ParamsFinder:
                 log.warning('loading from cache failed: ' + str(e))
 
         log.info('find_best() - start search')
-        study = optuna.create_study(study_name=f'{ParamsFinder.model_cls.__name__}', direction='minimize')
+        model_cls_name = ParamsFinder.model_cls.__name__
+        n_trials_model = {'ThetaSmModel': 50, 'MovingAverageModel': 50, 'HoltWintersSmModel': 100, 'ProphetModel': 100}
+        n_trials = n_trials_model.get(model_cls_name, n_trials)
+
+        study = optuna.create_study(study_name=f'{model_cls_name}', direction='minimize')
         study.optimize(ParamsFinder.objective, n_trials=n_trials)
 
         metric_names = ['smape_cv_opt']
@@ -224,10 +230,9 @@ class ParamsFinder:
     @staticmethod
     def trial_params_definitions() -> Dict:
 
-        pardefs = MovingAverageModel.trial_params() \
-                  + HoltWintersSmModel.trial_params() \
-                  + ProphetModel.trial_params() \
-                  + Forecaster.trial_params()
+        pardefs = Forecaster.trial_params()
+        for model_cls in MODELS.values():
+            pardefs.extend(model_cls.trial_params())
 
         pardefs_dict = {}
 
