@@ -46,10 +46,13 @@ class Forecaster:
             params_fcst_min_max: dict = None,
             boxcox_lambda: float = None,  # 1: is equivalent to using the original data, 0: log transform
             normalize: float = False,
+            use_data_since: str = None,
             **kwargs,
     ):
         self.model_cls = model_cls  # model class, must be a TsModel
         self.data = set_data(data, time_name, target_name, freq_data)
+        if use_data_since is not None and use_data_since != 'all':
+            self.data.data = self.data.data.loc[self.data.time >= pd.to_datetime(use_data_since)].reset_index(drop=True)
         self.data_exog = []  # set_data_list(data_exog, time_name, target_name, freq_data)
         self.target_name = target_name
         self.forecast_name = forecast_name
@@ -70,6 +73,7 @@ class Forecaster:
         self.params['sub_zero_with_eps'] = sub_zero_with_eps
         self.params['boxcox_lambda'] = boxcox_lambda
         self.params['normalize'] = normalize
+        self.params['use_data_since'] = use_data_since
 
         # forecast transformation after train
         self.params['fcst_min_max'] = fcst_min_max
@@ -95,6 +99,7 @@ class Forecaster:
     def trial_params() -> List[Dict]:
         trial_params_ = [
             dict(name='boxcox_lambda', type='float', low=0.0, high=1.0),
+            dict(name='use_data_since', type='categorical', choices=['all', '2020-02-01', '2021-02-01']) #
         ]
         return trial_params_
 
@@ -197,7 +202,7 @@ class Forecaster:
     @staticmethod
     def _min_required_obs(freq) -> int:
         """ minimum required data points to fit a model """
-        defaults = {'D': 180, 'W': 52, 'M': 24, 'MS': 24}
+        defaults = {'D': 180, 'W': 52, 'M': 5, 'MS': 5}
         return defaults[freq]
 
     @staticmethod

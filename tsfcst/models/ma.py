@@ -12,15 +12,16 @@ class MovingAverageModel(TsModel):
 
     def fit(self):
         n, avg = self.params['window'], self.params['average']
+        x = pd.Series(self.data.target)
+        n = min(n, len(x))
 
         if avg == 'simple':
-            self.ma = pd.Series(self.data.target).rolling(n, min_periods=1).mean()
+            self.ma = x.rolling(n, min_periods=1).mean()
         elif avg == 'exponential':
-            self.ma = pd.Series(self.data.target).ewm(span=n).mean()
+            self.ma = x.ewm(span=n).mean()
         elif avg == 'weighted':
             weights = np.arange(1, n+1)
-            self.ma = pd.Series(self.data.target).rolling(n).apply(
-                lambda prices: np.dot(prices, weights) / weights.sum(), raw=True)
+            self.ma = x.rolling(n).apply(lambda prices: np.dot(prices, weights) / weights.sum(), raw=True)
         else:
             raise ValueError(f'average type: {avg} not recognized. supported types: simple, exponential, weighted')
 

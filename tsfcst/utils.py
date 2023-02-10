@@ -106,7 +106,20 @@ def mape_agg(y_true, y_pred, agg_chunk_size=30, sub_zero_denom='average'):
 
 def irreg_rate(x):
     x = np.array(x)
-    return np.sqrt(np.nanmean(np.square((x[1:] - x[:-1]) / ((np.abs(x[:-1]) + np.abs(x[1:]) + 0.0001) / 2))))*100
+    if len(x) <= 2:
+        return 0
+
+    diffs = x[1:] - x[:-1]
+    denominator = ((np.abs(x[:-1]) + np.abs(x[1:]) + 0.0001) / 2)
+    prc_diffs = diffs / denominator
+    squared_prc_diffs = np.square(prc_diffs)
+
+    if all(np.isnan(squared_prc_diffs)):
+        return 0
+
+    squared_prc_diffs = np.nanmean(squared_prc_diffs)
+
+    return np.sqrt(squared_prc_diffs)*100
 
 
 def calc_fcst_error_metrics(df_ts, df_fcsts, time_name='date', target_name='value'):
