@@ -33,12 +33,12 @@ class TsData:
         )
 
     @property
-    def time(self) -> pd.Series:
-        return self.data[self.name_date]
+    def time(self) -> np.array:
+        return np.array(self.data[self.name_date])
 
     @property
-    def target(self) -> pd.Series:
-        return self.data[self.name_value]
+    def target(self) -> np.array:
+        return np.array(self.data[self.name_value])
 
     @staticmethod
     def freq_to_interval_name(freq: str):
