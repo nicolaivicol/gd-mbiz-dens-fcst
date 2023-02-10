@@ -114,7 +114,7 @@ class HoltWintersSmModel(TsModel):
         params_trial.append(dict(name='trend', type='categorical', choices=trend_choices))
 
         if trend:
-            params_trial.append(dict(name='smoothing_trend_max', type='float', low=0.0001, high=0.99, log=True))
+            params_trial.append(dict(name='smoothing_trend_max', type='float', low=0.0001, high=1.00, log=True))
 
         if damp:
             params_trial.append(dict(name='damped_trend', type='categorical', choices=[True]))
@@ -134,6 +134,13 @@ class HoltWintersSmModel(TsModel):
         if level:
             params_trial.append(dict(name='smoothing_level_max', type='float', low=0.0001, high=1.00, log=True))
 
+        return params_trial
+
+    @staticmethod
+    def trial_params_full():
+        params_trial = HoltWintersSmModel.trial_params(damp=False)
+        params_trial.append(dict(name='damped_trend', type='categorical', choices=[True, False]))
+        params_trial.append(dict(name='damping_trend_max', type='float', low=0.75, high=1.00))
         return params_trial
 
     def flexibility(self):

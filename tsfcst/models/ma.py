@@ -41,12 +41,17 @@ class MovingAverageModel(TsModel):
         }
 
     @staticmethod
-    def trial_params(*args):
+    def trial_params(trend=True, seasonal=True, multiplicative=True, level=True, damp=False):
+        # does not depend on any parameters, because it can't handle trend, seasonal, etc.
         params_trial = [
             dict(name='average', type='categorical', choices=['simple', 'exponential', 'weighted']),
             dict(name='window', type='int', low=1, high=24),
         ]
         return params_trial
+
+    @staticmethod
+    def trial_params_full():
+        return MovingAverageModel.trial_params()
 
     def flexibility(self):
         flexibility = 0

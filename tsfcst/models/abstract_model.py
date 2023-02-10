@@ -44,16 +44,22 @@ class TsModel(ABC):
     def trial_params(trend=True, seasonal=True, multiplicative=True, level=True, damp=False) -> List[Dict]:
         """
         Parameters search spaces (range/choices) to pick from in optuna trials
+        These spaces can be narrowed conditional on prior beliefs about the series using parameters.
 
         Parameters:
-            trend: possible to have trend?
+            trend: possible to have trend? (True: adds one more option to consider, that trend can be also multiplicative)
             seasonal: possible to be seasonal?
             multiplicative: possible to be multiplicative?
             level: possible to have level changes / structural breaks?
-            damp: to damp trend?
+            damp: to damp trend? (this will force one choice only: True or False)
 
         """
         raise NotImplementedError('trial_params() not implemented')
+
+    @staticmethod
+    def trial_params_full():
+        """ That's to show the full possible search space, unrestricted """
+        raise NotImplementedError('trial_params_full() not implemented')
 
     def flexibility(self) -> float:
         """ Flexibility of the model. We can penalize flexibility to reduce overffiting. """

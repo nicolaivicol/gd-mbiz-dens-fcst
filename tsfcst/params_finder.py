@@ -27,6 +27,12 @@ class ParamsFinder:
     data: TsData = None
     reg_coef = 0.0
 
+    trend = True
+    seasonal = True
+    multiplicative = True
+    level = True
+    damp = False
+
     @staticmethod
     def objective(trial: optuna.Trial):
         """
@@ -35,7 +41,14 @@ class ParamsFinder:
         Score to minimize is `smape_cv_opt` - SMAPE adjusted with penalties
         """
         params_trial_forecaster = ParamsFinder.get_trial_params(trial, Forecaster.trial_params())
-        params_trial_model = ParamsFinder.get_trial_params(trial, ParamsFinder.model_cls.trial_params())
+        params_trial_model_defined = ParamsFinder.model_cls.trial_params(
+            trend=ParamsFinder.trend,
+            seasonal=ParamsFinder.seasonal,
+            multiplicative=ParamsFinder.multiplicative,
+            level=ParamsFinder.level,
+            damp=ParamsFinder.damp,
+        )
+        params_trial_model = ParamsFinder.get_trial_params(trial, params_trial_model_defined)
         fcster = Forecaster(
             model_cls=ParamsFinder.model_cls,
             data=ParamsFinder.data,
@@ -76,8 +89,8 @@ class ParamsFinder:
 
         log.info('find_best() - start search')
         model_cls_name = ParamsFinder.model_cls.__name__
-        n_trials_model = {'ThetaSmModel': 50, 'MovingAverageModel': 50, 'HoltWintersSmModel': 100, 'ProphetModel': 100}
-        n_trials = n_trials_model.get(model_cls_name, n_trials)
+        # n_trials_model = {'ThetaSmModel': 50, 'MovingAverageModel': 50, 'HoltWintersSmModel': 100, 'ProphetModel': 100}
+        # n_trials = n_trials_model.get(model_cls_name, n_trials)
 
         study = optuna.create_study(study_name=f'{model_cls_name}', direction='minimize')
         study.optimize(ParamsFinder.objective, n_trials=n_trials)
@@ -232,7 +245,7 @@ class ParamsFinder:
 
         pardefs = Forecaster.trial_params()
         for model_cls in MODELS.values():
-            pardefs.extend(model_cls.trial_params())
+            pardefs.extend(model_cls.trial_params_full())
 
         pardefs_dict = {}
 

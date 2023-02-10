@@ -97,6 +97,10 @@ class ProphetModel(TsModel):
 
         return params_trial
 
+    @staticmethod
+    def trial_params_full():
+        return ProphetModel.trial_params()
+
     def flexibility(self):
         flexibility = 0
 

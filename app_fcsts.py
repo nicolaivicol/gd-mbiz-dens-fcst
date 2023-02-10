@@ -65,6 +65,8 @@ with st.sidebar.expander('CV settings:'):
     step_train_dates = st.slider(
         label="Step btw forecasts (months):", value=2, min_value=1, max_value=6, step=1,
         help="How many months between the forecasts.")
+    periods_test = 3
+    periods_out = 7
 
 df_ts = get_ts_by_cfips(cfips=cfips, target_name=target_name, _df=df)
 ts = TsData(df_ts['first_day_of_month'], df_ts[target_name])
@@ -73,6 +75,13 @@ model_cls = MODELS[model_alias]
 find_best_params = st.sidebar.button('Find best params')
 using_best_placeholder = st.sidebar.empty()
 # find_best_params = st.sidebar.checkbox('Find best params', False)
+
+trend = st.sidebar.checkbox('trend', True)
+seasonal = st.sidebar.checkbox('seasonal', False)
+multiplicative = st.sidebar.checkbox('multiplicative', False)
+level = st.sidebar.checkbox('level', True)
+damp = st.sidebar.checkbox('damp', True)
+
 n_trials = st.sidebar.select_slider(
     label="Trials:", value=100, options=[25, 50, 75, 100, 125, 150, 200],
     help="How many trials to run when searching best params.")
@@ -80,6 +89,8 @@ n_trials = st.sidebar.select_slider(
 reg_coef = st.sidebar.select_slider(
     label="Reg coef:", value=0, options=[0, 0.01, 0.02, 0.05, 0.10, 0.5, 1, 5, 10, 20, 50, 100, 1000],
     help="Regularization coefficient.")
+
+use_cache = st.sidebar.checkbox('use_cache', True)
 
 fig_paralel_coords, df_trials, best_result, best_result_median = None, None, None, None
 
@@ -90,11 +101,16 @@ if find_best_params or cache_exists:
     ParamsFinder.model_cls = model_cls
     ParamsFinder.data = ts
     ParamsFinder.reg_coef = reg_coef
+    ParamsFinder.trend = trend
+    ParamsFinder.seasonal = seasonal
+    ParamsFinder.multiplicative = multiplicative
+    ParamsFinder.level = level
+    ParamsFinder.damp = damp
 
     df_trials, best_result = ParamsFinder.find_best(
         n_trials=n_trials,
         id_cache=f"{cfips}-{target_name}-{model_alias}-{n_trials}-{str(reg_coef).replace('.', '_')}",
-        use_cache=True
+        use_cache=use_cache
     )
     log.debug('best_result: \n' + str(best_result))
 
@@ -102,7 +118,8 @@ if find_best_params or cache_exists:
     best_result_median = {'best_value': best_value_median, 'best_params': best_params_median}
     log.debug('best_result_median: \n' + str(best_result_median))
 
-    fig_paralel_coords = ParamsFinder.plot_parallel_optuna_res(df_trials.head(int(len(df_trials) * 0.33)))
+    top_n_trials = max(int(len(df_trials) * 0.33), 20)
+    fig_paralel_coords = ParamsFinder.plot_parallel_optuna_res(df_trials.head(top_n_trials))
     fig_paralel_coords.update_layout(autosize=True, height=650, width=1200, margin=dict(l=40, r=25, t=50, b=25))
     find_best_params = False
     using_best_placeholder.write(f'cfips={cfips} | using best params')
@@ -111,22 +128,22 @@ else:
 
 
 if best_result is not None:
-    params_model = {**best_result['best_params']}
+    best_params = {**best_result['best_params']}
 else:
-    params_model = {}
+    best_params = {}
 
-fcster = Forecaster(
-    model_cls=model_cls,
-    data=ts,
-    boxcox_lambda=params_model.pop('boxcox_lambda', None),
-    params_model=params_model
-)
+params_forecaster_names = [p['name'] for p in Forecaster.trial_params()]
+params_forecaster = {k: v for k, v in best_params.items() if k in params_forecaster_names}
+params_model = {k: v for k, v in best_params.items() if k not in params_forecaster_names}
+
+fcster = Forecaster(model_cls=model_cls, data=ts, params_model=params_model, **params_forecaster)
+
 df_fcsts_cv, metrics_cv = fcster.cv(
     n_train_dates=n_train_dates,
     step_train_dates=step_train_dates,
     periods_val=periods_val,
-    periods_test=3,
-    periods_out=7
+    periods_test=periods_test,
+    periods_out=periods_out
 )
 
 tab1, tab2, tab3 = st.tabs(["Plot forecasts", "Plot parallel", "Table with trials"])

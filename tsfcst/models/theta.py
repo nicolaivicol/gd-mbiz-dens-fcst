@@ -62,6 +62,10 @@ class ThetaSmModel(TsModel):
 
         return params_trial
 
+    @staticmethod
+    def trial_params_full():
+        return ThetaSmModel.trial_params()
+
     def flexibility(self):
         use_mle = float(self.params['use_mle'])
         flexibility = (1 + use_mle) * (self.params['theta'] - 0.99) ** 2
