@@ -10,6 +10,9 @@ class ThetaSmModel(TsModel):
     https://www.statsmodels.org/dev/examples/notebooks/generated/theta-model.html
     https://www.statsmodels.org/stable/generated/statsmodels.tsa.forecasting.theta.ThetaModel.html#statsmodels.tsa.forecasting.theta.ThetaModel
 
+    Parameters
+    theta:
+        larger theta allow for stronger trend, lower thetas produce flatter forecasts; range: 1 and higher
     """
 
     def __init__(self, data, params, **kwargs):
@@ -31,8 +34,7 @@ class ThetaSmModel(TsModel):
         return self.model_fit.forecast(steps, theta=self.params['theta'])
 
     def _fitted_values(self):
-        # TODO: find fitted values
-        return np.array(self.data.target)
+        return np.array(self.data.target)  # Theta has no fit values in sample
 
     @staticmethod
     def default_params():

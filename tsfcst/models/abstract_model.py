@@ -33,6 +33,7 @@ class TsModel(ABC):
 
     @abstractmethod
     def _fitted_values(self) -> Union[pd.Series, np.array]:
+        """ Fitted values in-sample """
         raise NotImplementedError
 
     @staticmethod
