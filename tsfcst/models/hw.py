@@ -90,7 +90,7 @@ class HoltWintersSmModel(TsModel):
         return {
             'trend': 'add',
             'damped_trend': True,
-            'seasonal': 'add',
+            'seasonal': 'no',
             'seasonal_periods': 12,
             'smoothing_level_min': 0,
             'smoothing_level_max': 0.05,
@@ -98,22 +98,42 @@ class HoltWintersSmModel(TsModel):
             'smoothing_trend_max': 0.04,
             'smoothing_seasonal_min': 0,
             'smoothing_seasonal_max': 0.05,
-            'damping_trend_min': 0.90,
-            'damping_trend_max': 0.98,
+            'damping_trend_min': 0.70,
+            'damping_trend_max': 1.00,
         }
 
     @staticmethod
-    def trial_params():
-        params_trial = [
-            dict(name='trend', type='categorical', choices=['add', 'no']),
-            dict(name='seasonality', type='categorical', choices=['add', 'no']),
-            dict(name='damped_trend', type='categorical', choices=[True, False]),
-            dict(name='smoothing_level_max', type='float', low=0.0001, high=0.33, log=True),
-            dict(name='smoothing_trend_max', type='float', low=0.0001, high=0.33, log=True),
-            dict(name='smoothing_seasonal_max', type='float', low=0.0001, high=0.33, log=True),
-            dict(name='damping_trend_min', type='float', low=0.70, high=0.94),
-            dict(name='damping_trend_max', type='float', low=0.95, high=0.995),
-        ]
+    def trial_params(trend=True, seasonal=True, multiplicative=True, level=True, damp=False):
+        params_trial = []
+
+        trend_choices = ['no']
+        if trend:
+            trend_choices.append('add')
+            if multiplicative:
+                trend_choices.append('mul')
+        params_trial.append(dict(name='trend', type='categorical', choices=trend_choices))
+
+        if trend:
+            params_trial.append(dict(name='smoothing_trend_max', type='float', low=0.0001, high=0.99, log=True))
+
+        if damp:
+            params_trial.append(dict(name='damped_trend', type='categorical', choices=[True]))
+            # params_trial.append(dict(name='damping_trend_min', type='float', low=0.0, high=0.749))
+            params_trial.append(dict(name='damping_trend_max', type='float', low=0.75, high=1.00))
+
+        seasonality_choices = ['no']
+        if seasonal:
+            seasonality_choices.append('add')
+            if multiplicative:
+                seasonality_choices.append('mul')
+        params_trial.append(dict(name='seasonality', type='categorical', choices=seasonality_choices))
+
+        if seasonal:
+            params_trial.append(dict(name='smoothing_seasonal_max', type='float', low=0.0001, high=0.33, log=True))
+
+        if level:
+            params_trial.append(dict(name='smoothing_level_max', type='float', low=0.0001, high=1.00, log=True))
+
         return params_trial
 
     def flexibility(self):

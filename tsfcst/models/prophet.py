@@ -73,15 +73,28 @@ class ProphetModel(TsModel):
         }
 
     @staticmethod
-    def trial_params():
-        params_trial = [
-            dict(name='growth', type='categorical', choices=['linear', 'flat']),
-            dict(name='n_changepoints', type='int', low=0, high=5),
-            dict(name='changepoint_range', type='float', low=0.70, high=1.0),
-            dict(name='changepoint_prior_scale', type='float', low=0.001, high=1.0, log=True),
-            dict(name='yearly_seasonality', type='categorical', choices=[True, False]),
-            dict(name='seasonality_prior_scale', type='float', low=0.001, high=10.0, log=True),
-        ]
+    def trial_params(trend=True, seasonal=True, multiplicative=True, level=True, damp=False):
+        params_trial = []
+
+        growth_choices = ['flat']
+        if trend:
+            growth_choices.append('linear')
+            # if damp:
+            #     growth_choices = ['logistic']
+        params_trial.append(dict(name='growth', type='categorical', choices=growth_choices))
+
+        if seasonal:
+            params_trial.append(dict(name='yearly_seasonality', type='categorical', choices=[True, False]))
+            params_trial.append(dict(name='seasonality_prior_scale', type='float', low=0.001, high=10.0, log=True))
+
+        n_changepoints_high = 1
+        if level:
+            n_changepoints_high = 3
+        params_trial.append(dict(name='n_changepoints', type='int', low=0, high=n_changepoints_high))
+
+        params_trial.append(dict(name='changepoint_range', type='float', low=0.70, high=1.0))
+        params_trial.append(dict(name='changepoint_prior_scale', type='float', low=0.001, high=1.0, log=True))
+
         return params_trial
 
     def flexibility(self):

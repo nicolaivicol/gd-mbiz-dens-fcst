@@ -41,22 +41,29 @@ class ThetaSmModel(TsModel):
         return {
             'period': 12,
             'deseasonalize': False,
-            'use_test': False,
+            'use_test': True,
             'method': 'additive',
             'theta': 2.0,
             'use_mle': False,
         }
 
     @staticmethod
-    def trial_params():
-        params_trial = [
-            dict(name='theta', type='float', low=1.0, high=5.0),
-            # dict(name='use_mle', type='categorical', choices=[True, False]),
-            # dict(name='deseasonalize', type='categorical', choices=[True, False]),
-        ]
+    def trial_params(trend=True, seasonal=True, multiplicative=True, level=True, damp=False):
+
+        theta_max = 5 if trend else 1.0001
+        params_trial = [dict(name='theta', type='float', low=1.0, high=theta_max)]
+
+        if seasonal:
+            params_trial.append(dict(name='deseasonalize', type='categorical', choices=[True, False]))
+            method_choices = ['additive']
+            if multiplicative:
+                method_choices.append('multiplicative')
+            params_trial.append(dict(name='method', type='categorical', choices=method_choices))
+
         return params_trial
 
     def flexibility(self):
         use_mle = float(self.params['use_mle'])
         flexibility = (1 + use_mle) * (self.params['theta'] - 0.99) ** 2
+        flexibility += float(self.params['deseasonalize']) * (1 + 1 * (self.params['method'] == 'multiplicative'))
         return flexibility

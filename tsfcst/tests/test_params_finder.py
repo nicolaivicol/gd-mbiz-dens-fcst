@@ -2,7 +2,7 @@ import unittest
 import plotly.offline as py
 
 from tsfcst.time_series import TsData
-from tsfcst.models.inventory import MovingAverageModel, HoltWintersSmModel, ProphetModel
+from tsfcst.models.inventory import ThetaSmModel
 from tsfcst.params_finder import ParamsFinder
 from tsfcst.forecasters.forecaster import Forecaster
 from tsfcst.utils import plot_fcsts_and_actual
@@ -11,7 +11,7 @@ from tsfcst.utils import plot_fcsts_and_actual
 class TestParamsFinder(unittest.TestCase):
 
     def test_ParamsFinder(self):
-        model_cls = HoltWintersSmModel
+        model_cls = ThetaSmModel
         ts = TsData.sample_monthly()
 
         ParamsFinder.model_cls = model_cls
@@ -28,6 +28,7 @@ class TestParamsFinder(unittest.TestCase):
             model_cls=model_cls,
             data=ts,
             boxcox_lambda=best_params_median.pop('boxcox_lambda', None),
+            use_data_since=best_params_median.pop('use_data_since', None),
             params_model=best_params_median
         )
         df_fcsts_cv, metrics_cv = fcster.cv(periods_test=3, periods_out=7)

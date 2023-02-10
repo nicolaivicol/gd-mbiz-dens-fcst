@@ -41,8 +41,18 @@ class TsModel(ABC):
         return {}
 
     @staticmethod
-    def trial_params() -> List[Dict]:
-        """ Parameters range/choices to try with optuna. """
+    def trial_params(trend=True, seasonal=True, multiplicative=True, level=True, damp=False) -> List[Dict]:
+        """
+        Parameters search spaces (range/choices) to pick from in optuna trials
+
+        Parameters:
+            trend: possible to have trend?
+            seasonal: possible to be seasonal?
+            multiplicative: possible to be multiplicative?
+            level: possible to have level changes / structural breaks?
+            damp: to damp trend?
+
+        """
         raise NotImplementedError('trial_params() not implemented')
 
     def flexibility(self) -> float:
