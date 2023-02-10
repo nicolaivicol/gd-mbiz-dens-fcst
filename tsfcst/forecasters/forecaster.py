@@ -98,7 +98,7 @@ class Forecaster:
     @staticmethod
     def trial_params() -> List[Dict]:
         trial_params_ = [
-            dict(name='boxcox_lambda', type='float', low=0.0, high=1.0),
+            # dict(name='boxcox_lambda', type='float', low=0.0, high=1.0),
             dict(name='use_data_since', type='categorical', choices=['all', '2020-02-01', '2021-02-01']) #
         ]
         return trial_params_
