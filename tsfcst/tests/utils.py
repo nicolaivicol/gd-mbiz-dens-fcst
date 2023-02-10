@@ -1,4 +1,9 @@
 import pandas as pd
+import numpy as np
+import unittest
+
+
+from tsfcst.time_series import TsData
 
 
 def is_time_series(ts):
@@ -24,3 +29,25 @@ def has_datetime_index(ts):
         return isinstance(ts.index, pd.DatetimeIndex)
     except:
         return False
+
+
+class TestModel(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(self):
+        n_out = 7
+        ts_in = TsData.sample_monthly()
+        ts_in.data = ts_in.data.iloc[:-n_out, ]
+        ts_out = TsData.sample_monthly()
+        ts_out.data = ts_out.data.iloc[-n_out:, ]
+        self.n_out, self.ts_in, self.ts_out = n_out, ts_in, ts_out
+
+    def general(self, model_class, th_mape=0.10):
+        m = model_class(self.ts_in, params={})
+        m.fit()
+        f = m.predict(self.n_out)
+        assert self.ts_in.data['date'].max() < f.data['date'].min()
+        assert len(f) == self.n_out
+        assert np.absolute(np.array(f.target) / np.array(self.ts_out.target) - 1).mean() < th_mape
+        assert m.flexibility() >= 0
+

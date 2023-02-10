@@ -16,7 +16,7 @@ class TestParamsFinder(unittest.TestCase):
 
         ParamsFinder.model_cls = model_cls
         ParamsFinder.data = ts
-        df_trials, best_result = ParamsFinder.find_best(n_trials=100, use_cache=True)
+        df_trials, best_result = ParamsFinder.find_best(n_trials=100, use_cache=False)
         print('best_params: \n' + str(best_result))
 
         best_metric, best_params_median = ParamsFinder.best_params_top_median(df_trials)

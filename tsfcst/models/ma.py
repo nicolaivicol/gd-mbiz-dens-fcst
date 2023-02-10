@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from tsfcst.models.abstract_model import TsModel
 
 
@@ -13,12 +14,13 @@ class MovingAverageModel(TsModel):
         n, avg = self.params['window'], self.params['average']
 
         if avg == 'simple':
-            self.ma = self.data.target.rolling(n, min_periods=1).mean()
+            self.ma = pd.Series(self.data.target).rolling(n, min_periods=1).mean()
         elif avg == 'exponential':
-            self.ma = self.data.target.ewm(span=n).mean()
+            self.ma = pd.Series(self.data.target).ewm(span=n).mean()
         elif avg == 'weighted':
             weights = np.arange(1, n+1)
-            self.ma = self.data.target.rolling(n).apply(lambda prices: np.dot(prices, weights) / weights.sum(), raw=True)
+            self.ma = pd.Series(self.data.target).rolling(n).apply(
+                lambda prices: np.dot(prices, weights) / weights.sum(), raw=True)
         else:
             raise ValueError(f'average type: {avg} not recognized. supported types: simple, exponential, weighted')
 
@@ -47,6 +49,6 @@ class MovingAverageModel(TsModel):
 
     def flexibility(self):
         flexibility = 0
-        avg = {'simple': 1, 'weighted': 1.5, 'exponential': 2}[self.params['average']]
-        flexibility += avg * (1 - min(1, (self.params['window'] - 1) / min(100, self.data.periods_year)))
+        avg_factor = {'simple': 1, 'weighted': 1.5, 'exponential': 2}[self.params['average']]
+        flexibility += avg_factor * 1 / np.log1p(self.params['window'] / self.data.periods_year)
         return flexibility
