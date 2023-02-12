@@ -25,13 +25,22 @@ class ParamsFinder:
 
     model_cls: type(TsModel) = None
     data: TsData = None
-    reg_coef = 0.0
 
+    # for search space
     trend = True
     seasonal = True
     multiplicative = True
     level = True
     damp = False
+
+    # for cv
+    reg_coef = 0.0
+    n_train_dates = None
+    step_train_dates = None
+    periods_val = None
+    periods_test = 0
+    periods_out = 0
+    periods_val_last = None
 
     @staticmethod
     def objective(trial: optuna.Trial):
@@ -55,7 +64,14 @@ class ParamsFinder:
             params_model=params_trial_model,
             **params_trial_forecaster,
         )
-        df_fcsts_cv, metrics_cv = fcster.cv(periods_test=3)
+        df_fcsts_cv, metrics_cv = fcster.cv(
+            n_train_dates=ParamsFinder.n_train_dates,
+            step_train_dates=ParamsFinder.step_train_dates,
+            periods_val=ParamsFinder.periods_val,
+            periods_test=ParamsFinder.periods_test,
+            periods_out=ParamsFinder.periods_out,
+            periods_val_last=ParamsFinder.periods_val_last
+        )
         smape_cv_opt_ = smape_cv_opt(**metrics_cv)
         model_flexibility_ = fcster.model.flexibility()
         return smape_cv_opt_ + ParamsFinder.reg_coef * model_flexibility_
@@ -64,26 +80,28 @@ class ParamsFinder:
     def get_file_names_cache(id_cache):
         file_df_trials = f'{config.DIR_CACHE_TUNE_HYPER_PARAMS_W_OPTUNA}/df_trials/{id_cache}.csv'
         file_best_params = f'{config.DIR_CACHE_TUNE_HYPER_PARAMS_W_OPTUNA}/best_params/{id_cache}.json'
-        return file_df_trials, file_best_params
+        file_param_importances = f'{config.DIR_CACHE_TUNE_HYPER_PARAMS_W_OPTUNA}/param_importances/{id_cache}.csv'
+        return file_df_trials, file_best_params, file_param_importances
 
     @staticmethod
     def cache_exists(id_cache):
-        file_df_trials, file_best_params = ParamsFinder.get_file_names_cache(id_cache)
-        return os.path.exists(file_df_trials) and os.path.exists(file_best_params)
+        file_df_trials, file_best_params, file_param_importances = ParamsFinder.get_file_names_cache(id_cache)
+        return os.path.exists(file_df_trials) and os.path.exists(file_best_params) and os.path.exists(file_param_importances)
 
     @staticmethod
-    def find_best(n_trials=100, id_cache='tmp', use_cache=False) -> Tuple[pd.DataFrame, Dict]:
+    def find_best(n_trials=100, id_cache='tmp', use_cache=False) -> Tuple[pd.DataFrame, Dict, pd.DataFrame]:
         """ run many trials with various combinations of parameters to search for best parameters using optuna """
 
-        file_df_trials, file_best_params = ParamsFinder.get_file_names_cache(id_cache)
+        file_df_trials, file_best_params, file_param_importances = ParamsFinder.get_file_names_cache(id_cache)
 
         if use_cache and ParamsFinder.cache_exists(id_cache):
             log.debug('find_best() - loading from cache')
             try:
                 df_trials = pd.read_csv(file_df_trials)
+                param_importances = pd.read_csv(file_param_importances)
                 with open(file_best_params, 'r') as f:
                     best_result = json.load(f)
-                return df_trials, best_result
+                return df_trials, best_result, param_importances
             except Exception as e:
                 log.warning('loading from cache failed: ' + str(e))
 
@@ -99,9 +117,12 @@ class ParamsFinder:
         df_trials = pd.DataFrame([dict(zip(metric_names, trial.values), **trial.params) for trial in study.trials])
         df_trials = df_trials.sort_values(by=['smape_cv_opt'], ascending=True).reset_index(drop=True)
         best_result = {'best_value': study.best_value, 'best_params': study.best_params}
+        param_importances = optuna.importance.get_param_importances(study)
+        param_importances = pd.DataFrame({'parameter': param_importances.keys(), 'importance': param_importances.values()})
 
         # cache
         df_trials.to_csv(file_df_trials, index=False, float_format='%.4f')
+        param_importances.to_csv(file_param_importances, index=False, float_format='%.4f')
         with open(file_best_params, 'w') as f:
             json.dump(best_result, f, indent=2)
 
@@ -110,7 +131,7 @@ class ParamsFinder:
         log.info('find_best() - top 25 trials: \n' +
                  tabulate(df_trials.head(25), headers=df_trials.columns, showindex=False))
 
-        return df_trials, best_result
+        return df_trials, best_result, param_importances
 
     @staticmethod
     def best_params_top_median(df_cv_results, min_combs=1, max_combs=15, th_abs=0.50, th_prc=0.10):
@@ -231,6 +252,43 @@ class ParamsFinder:
                 ),
                 dimensions=dimensions_
             )
+        )
+
+        if plot:
+            # py.iplot(fig)
+            py.plot(fig)
+
+        return fig
+
+    @staticmethod
+    def plot_importances(df: pd.DataFrame, plot=False):
+
+        import plotly.offline as py
+        import plotly.graph_objects as go
+        import plotly.colors
+
+        layout = go.Layout(
+            title="Hyperparameter Importances",
+            xaxis={"title": "Importance"},
+            yaxis={"title": "Hyperparameter"},
+            showlegend=False,
+        )
+
+        if len(df) == 0:
+            return go.Figure(data=[], layout=layout)
+
+        df = df.sort_values(['importance'], ascending=True)
+
+        fig = go.Figure(
+            data=[
+                go.Bar(
+                    x=df['importance'],
+                    y=df['parameter'],
+                    marker_color=plotly.colors.sequential.Blues[-4],
+                    orientation='h',
+                )
+            ],
+            layout=layout,
         )
 
         if plot:

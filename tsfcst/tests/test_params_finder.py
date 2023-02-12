@@ -16,13 +16,19 @@ class TestParamsFinder(unittest.TestCase):
 
         ParamsFinder.model_cls = model_cls
         ParamsFinder.data = ts
-        df_trials, best_result = ParamsFinder.find_best(n_trials=50, use_cache=False)
+        df_trials, best_result, param_importances = ParamsFinder.find_best(n_trials=50, use_cache=False)
         print('best_params: \n' + str(best_result))
 
         best_metric, best_params_median = ParamsFinder.best_params_top_median(df_trials)
         print('best_params_median: \n' + str(best_params_median))
 
-        _ = ParamsFinder.plot_parallel_optuna_res(df_trials.head(int(len(df_trials) * 0.33)), plot=True)
+        print('top trials: \n' + str(df_trials.head(5)))
+        py.plot(ParamsFinder.plot_parallel_optuna_res(df_trials.head(max(int(len(df_trials) * 0.33), 25))),
+                filename='temp-plot_parallel_optuna_res.html')
+
+        print('importances: \n' + str(param_importances))
+        py.plot(ParamsFinder.plot_importances(param_importances),
+                filename='temp-plot_importances.html')
 
         fcster = Forecaster(
             model_cls=model_cls,
@@ -37,4 +43,4 @@ class TestParamsFinder(unittest.TestCase):
         metrics_cv_str = Forecaster.metrics_cv_str_pretty(metrics_cv)
         print(metrics_cv_str)
         fig.update_layout(title=f'Forecasts by best model={model_cls.__name__}', xaxis_title=metrics_cv_str)
-        py.plot(fig)
+        py.plot(fig, filename='temp-plot_fcsts_and_actual.html')

@@ -116,12 +116,13 @@ class Forecaster:
         df_fcst = self._prep_forecast_df(ts_pred, train_date, forecast_end)
         return df_fcst
 
-    def cv(self, n_train_dates=None, step_train_dates=None, periods_val=None, periods_test=0, periods_out=0):
+    def cv(self, n_train_dates=None, step_train_dates=None, periods_val=None,
+           periods_test=0, periods_out=0, periods_val_last=None):
 
-        n_train_dates, step_train_dates, periods_val = \
-            self._handle_cv_args(n_train_dates, step_train_dates, periods_val)
+        n_train_dates, step_train_dates, periods_val, periods_val_last = \
+            self._handle_cv_args(n_train_dates, step_train_dates, periods_val, periods_val_last)
         train_dates, test_start, last_date, periods_fcst = \
-            self._handle_cv_dates(n_train_dates, step_train_dates, periods_val, periods_test, periods_out)
+            self._handle_cv_dates(n_train_dates, step_train_dates, periods_val, periods_test, periods_out, periods_val_last)
 
         t, v, f = self.time_name, self.target_name, self.forecast_name
         df_fcsts_cv, df_fits_cv = pd.DataFrame({t: []}), pd.DataFrame({t: []})
@@ -164,30 +165,35 @@ class Forecaster:
         self.df_fcsts_cv, self.metrics_cv = df_fcsts_cv, metrics_cv
         return df_fcsts_cv, metrics_cv
 
-    def _handle_cv_args(self, n_train_dates, step_train_dates, periods_val):
-        if n_train_dates is None and step_train_dates is None and periods_val is None:
-            defaults = {'D': (5, 28, 28), 'W': (5, 4, 4), 'M': (3, 2, 5), 'MS': (3, 2, 5)}
-            n_train_dates, step_train_dates, periods_val = defaults[self.freq_model]
-        return n_train_dates, step_train_dates, periods_val
+    def _handle_cv_args(self, n_train_dates, step_train_dates, periods_val, periods_val_last):
+        if n_train_dates is None and step_train_dates is None and periods_val is None and periods_val_last is None:
+            defaults = {'D': (5, 28, 28, 28), 'W': (5, 4, 4, 5), 'M': (3, 2, 7, 5), 'MS': (3, 2, 7, 5)}
+            n_train_dates, step_train_dates, periods_val, periods_val_last = defaults[self.freq_model]
+        return n_train_dates, step_train_dates, periods_val, periods_val_last
 
-    def _handle_cv_dates(self, n_train_dates, step_train_dates, periods_val, periods_test, periods_out):
+    def _handle_cv_dates(self, n_train_dates, step_train_dates, periods_val, periods_test, periods_out, periods_val_last):
         target_not_na = ~np.isnan(self.data.target)
         last_date = pd.to_datetime(np.max(self.data.time[target_not_na]))
         intrvl_name = TsData.freq_to_interval_name(self.freq_model)
         test_start = last_date - pd.DateOffset(**{intrvl_name: periods_test})
-        train_dates = [test_start - pd.DateOffset(**{intrvl_name: periods_val + i * step_train_dates})
-                       for i in range(n_train_dates)]
-        train_dates.sort()
-
         min_req_data_obs = self._min_required_obs(self.freq_model)
-        min_train_date = min(self.data.time) + pd.DateOffset(**{intrvl_name: min_req_data_obs})
-        train_dates = [td for td in train_dates if td > min_train_date]
+        min_allowed_train_date = min(self.data.time) + pd.DateOffset(**{intrvl_name: min_req_data_obs})
 
-        if len(train_dates) == 0:
-            raise AssertionError(f"all train dates are before {min_train_date.strftime('%Y-%m-%d')} - the date "
-                                 f"that ensures at least {min_req_data_obs} data points for training")
+        if periods_val_last is None:
+            periods_val_last = periods_val
 
-        periods_fcst = [periods_val] * len(train_dates)
+        train_dates, periods_fcst = [], []
+
+        for i in sorted(range(n_train_dates), reverse=True):
+            periods_offset = periods_val_last + i * step_train_dates
+            train_date = test_start - pd.DateOffset(**{intrvl_name: periods_offset})
+            if train_date < min_allowed_train_date:
+                raise AssertionError(f"{min_allowed_train_date.strftime('%Y-%m-%d')} is the minimum train date which "
+                                     f"ensures at least {min_req_data_obs} data points for training, but the provided "
+                                     f"settings generated the train date {train_date.strftime('%Y-%m-%d')} "
+                                     f"which is before this date, use less n_train_dates or smaller step_train_dates")
+            train_dates.append(train_date)
+            periods_fcst.append(min(periods_val, periods_offset))
 
         if periods_test > 0:
             train_dates.append(test_start)
@@ -209,7 +215,7 @@ class Forecaster:
     def metrics_cv_str_pretty(metrics_cv):
         s = (f"smape_fit={metrics_cv['smape_avg_fit']:.3f}±{metrics_cv['smape_std_fit']:.3f}"
              f" | smape_val={metrics_cv['smape_avg_val']:.3f}±{metrics_cv['smape_std_val']:.3f}"
-             f" | smape_test={metrics_cv['smape_avg_test']:.3f}"
+             f" | smape_test={metrics_cv.get('smape_avg_test', np.nan):.3f}"
              f" | maprev_val={metrics_cv['maprev_val']:.3f}"
              f" | irreg_val={metrics_cv['irreg_val']:.3f}")
         return s
