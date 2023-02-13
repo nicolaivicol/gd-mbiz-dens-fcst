@@ -16,21 +16,25 @@ class TsData:
             fill_na=0,
             date_format: str = None,
             freq: str = 'MS',  # 'D', 'W', 'M', 'MS', 'A'
+            asis: bool = True
     ):
         self.name_date = name_date
         self.name_value = name_value
         self.freq = freq
         self.fill_na = fill_na
-        self.data = from_dates_values(
-            dates=dates,
-            values=values,
-            name_date=name_date,
-            name_value=name_value,
-            fill_na=fill_na,
-            date_format=date_format,
-            freq=freq,
-            as_df=True
-        )
+        if asis:
+            self.data = pd.DataFrame({name_date: dates, name_value: values})
+        else:
+            self.data = from_dates_values(
+                dates=dates,
+                values=values,
+                name_date=name_date,
+                name_value=name_value,
+                fill_na=fill_na,
+                date_format=date_format,
+                freq=freq,
+                as_df=True
+            )
 
     @property
     def time(self) -> np.array:
@@ -56,39 +60,6 @@ class TsData:
     def periods_year(self):
         return self.periods_in_year(self.freq)
 
-    def aggregate(self, to_freq) -> 'TsData':
-        df = self.data.set_index(self.name_date)
-        to_freq_num = self.freq_numeric(to_freq)
-        if to_freq == 'W':
-            to_freq = 'W-' + max(df.index).strftime('%a')
-        df_agg = df.resample(to_freq, label='right').sum(min_count=to_freq_num)
-        df_agg = df_agg.loc[~np.isnan(df_agg[self.name_value])]
-        ts = TsData(
-            dates=df_agg.index,
-            values=df_agg[self.name_value],
-            name_date=self.name_date,
-            name_value=self.name_value,
-            freq=to_freq,
-            fill_na=self.fill_na,
-        )
-        return ts
-
-    def disaggregate(self, to_freq='D') -> 'TsData':
-        df = self.data.set_index(self.name_date)
-        from_freq_num = self.freq_numeric(self.freq)
-        new_index = pd.date_range(min(df.index) - pd.DateOffset(from_freq_num-1), max(df.index), freq=to_freq)
-        df = df.reindex(new_index).bfill()
-        df[self.name_value] = df[self.name_value] / from_freq_num
-        ts = TsData(
-            dates=df.index,
-            values=df[self.name_value],
-            name_date=self.name_date,
-            name_value=self.name_value,
-            freq=to_freq,
-            fill_na=self.fill_na,
-        )
-        return ts
-
     @staticmethod
     def freq_numeric(freq):
         return {'D': 1, 'W': 7, 'M': 28}[freq[0]]
@@ -108,6 +79,9 @@ class TsData:
 
     def __len__(self):
         return len(self.data)
+
+    def __str__(self):
+        return str(self.data)
 
     @staticmethod
     def sample_monthly():
