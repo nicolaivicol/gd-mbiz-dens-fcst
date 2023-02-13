@@ -1,13 +1,9 @@
 import numpy as np
 import streamlit as st
-import pandas as pd
-import pkg_resources
 import os
-import re
 import random
 import logging
 
-import config
 from etl import load_data, get_ts_by_cfips
 from tsfcst.params_finder import ParamsFinder
 from tsfcst.models.inventory import MODELS

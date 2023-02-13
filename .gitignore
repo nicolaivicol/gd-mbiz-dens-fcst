@@ -5,4 +5,4 @@ artifacts/
 .pytest_cache
 .venv*
 dask-worker-space/
-temp-plot.html
+temp-plot*.html
