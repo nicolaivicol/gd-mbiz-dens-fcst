@@ -31,3 +31,18 @@ class TestForecaster(unittest.TestCase):
         assert df_fcsts_cv.shape[0] > 0
         assert isinstance(metrics_cv, dict)
         print(metrics_cv)
+
+    def test_cv_without_test_out(self):
+        df_fcsts_cv, metrics_cv = self.fcster.cv(
+            n_train_dates=3,
+            step_train_dates=2,
+            periods_val=7,
+            periods_test=0,
+            periods_out=0,
+            periods_val_last=5,
+            offset_last_date=3
+        )
+        isinstance(df_fcsts_cv, pd.DataFrame)
+        assert df_fcsts_cv.shape[0] > 0
+        assert isinstance(metrics_cv, dict)
+        print(metrics_cv)

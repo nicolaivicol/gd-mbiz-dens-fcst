@@ -117,12 +117,13 @@ class Forecaster:
         return df_fcst
 
     def cv(self, n_train_dates=None, step_train_dates=None, periods_val=None,
-           periods_test=0, periods_out=0, periods_val_last=None):
+           periods_test=0, periods_out=0, periods_val_last=None, offset_last_date=0):
 
         n_train_dates, step_train_dates, periods_val, periods_val_last = \
             self._handle_cv_args(n_train_dates, step_train_dates, periods_val, periods_val_last)
         train_dates, test_start, last_date, periods_fcst = \
-            self._handle_cv_dates(n_train_dates, step_train_dates, periods_val, periods_test, periods_out, periods_val_last)
+            self._handle_cv_dates(n_train_dates, step_train_dates, periods_val, periods_test,
+                                  periods_out, periods_val_last, offset_last_date)
 
         t, v, f = self.time_name, self.target_name, self.forecast_name
         df_fcsts_cv, df_fits_cv = pd.DataFrame({t: []}), pd.DataFrame({t: []})
@@ -171,10 +172,12 @@ class Forecaster:
             n_train_dates, step_train_dates, periods_val, periods_val_last = defaults[self.freq_model]
         return n_train_dates, step_train_dates, periods_val, periods_val_last
 
-    def _handle_cv_dates(self, n_train_dates, step_train_dates, periods_val, periods_test, periods_out, periods_val_last):
-        target_not_na = ~np.isnan(self.data.target)
-        last_date = pd.to_datetime(np.max(self.data.time[target_not_na]))
+    def _handle_cv_dates(self, n_train_dates, step_train_dates, periods_val, periods_test, periods_out,
+                         periods_val_last, offset_last_date):
         intrvl_name = TsData.freq_to_interval_name(self.freq_model)
+        target_not_na = ~np.isnan(self.data.target)
+        last_date_with_target = pd.to_datetime(np.max(self.data.time[target_not_na]))
+        last_date = last_date_with_target - pd.DateOffset(**{intrvl_name: offset_last_date})
         test_start = last_date - pd.DateOffset(**{intrvl_name: periods_test})
         min_req_data_obs = self._min_required_obs(self.freq_model)
         min_allowed_train_date = min(self.data.time) + pd.DateOffset(**{intrvl_name: min_req_data_obs})
