@@ -92,7 +92,7 @@ class ParamsFinder:
         return os.path.exists(file_df_trials) and os.path.exists(file_best_params) and os.path.exists(file_param_importances)
 
     @staticmethod
-    def find_best(n_trials=100, id_cache='tmp', use_cache=False, param_importances=True) -> Tuple[pd.DataFrame, Dict, pd.DataFrame]:
+    def find_best(n_trials=100, id_cache='tmp', use_cache=False, parimp=True) -> Tuple[pd.DataFrame, Dict, pd.DataFrame]:
         """ run many trials with various combinations of parameters to search for best parameters using optuna """
 
         file_df_trials, file_best_params, file_param_importances = ParamsFinder.get_file_names_cache(id_cache)
@@ -119,7 +119,8 @@ class ParamsFinder:
         df_trials = df_trials.sort_values(by=['smape_cv_opt'], ascending=True).reset_index(drop=True)
         best_result = {'best_value': study.best_value, 'best_params': study.best_params}
 
-        if param_importances:
+        param_importances = None
+        if parimp:
             param_importances = optuna.importance.get_param_importances(study)
             param_importances = pd.DataFrame({'parameter': param_importances.keys(), 'importance': param_importances.values()})
 
@@ -128,13 +129,13 @@ class ParamsFinder:
             df_trials.to_csv(file_df_trials, index=False, float_format='%.4f')
             with open(file_best_params, 'w') as f:
                 json.dump(best_result, f, indent=2)
-            if param_importances:
+            if parimp:
                 param_importances.to_csv(file_param_importances, index=False, float_format='%.4f')
 
         log.info(f'find_best() - best parameters found: \n'
                  + json.dumps(best_result, indent=2))
-        log.info('find_best() - top 25 trials: \n' +
-                 tabulate(df_trials.head(25), headers=df_trials.columns, showindex=False))
+        log.info('find_best() - top 10 trials: \n' +
+                 tabulate(df_trials.head(10), headers=df_trials.columns, showindex=False))
 
         return df_trials, best_result, param_importances
 

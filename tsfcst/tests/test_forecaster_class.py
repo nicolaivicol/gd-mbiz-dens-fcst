@@ -27,7 +27,7 @@ class TestForecaster(unittest.TestCase):
             periods_test=3,
             periods_out=7
         )
-        isinstance(df_fcsts_cv, pd.DataFrame)
+        assert isinstance(df_fcsts_cv, pd.DataFrame)
         assert df_fcsts_cv.shape[0] > 0
         assert isinstance(metrics_cv, dict)
         print(metrics_cv)
@@ -42,7 +42,7 @@ class TestForecaster(unittest.TestCase):
             periods_val_last=5,
             offset_last_date=3
         )
-        isinstance(df_fcsts_cv, pd.DataFrame)
+        assert isinstance(df_fcsts_cv, pd.DataFrame)
         assert df_fcsts_cv.shape[0] > 0
         assert isinstance(metrics_cv, dict)
         print(metrics_cv)

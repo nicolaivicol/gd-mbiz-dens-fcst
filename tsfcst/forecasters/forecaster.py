@@ -1,6 +1,7 @@
 import math
 import numpy as np
 import pandas as pd
+import polars as pl
 import warnings
 from typing import List, Dict, Union
 import copy
@@ -109,11 +110,11 @@ class Forecaster:
         self.model = self.model_cls(data=self._data_train, params=self.params_model, data_exog=self._data_exog_train)
         self.model.fit()
 
-    def forecast(self, periods_ahead: int = None, train_date=None, forecast_end=None) -> pd.DataFrame:
+    def forecast(self, periods_ahead: int = None, train_date=None, forecast_end=None, as_polars=False) -> Union[pd.DataFrame, pl.DataFrame]:
         periods_ahead, train_date, forecast_end = self._prep_args_predict(periods_ahead, train_date, forecast_end, self.freq_model)
         self.fit(train_date=train_date)
         ts_pred = self.model.predict(steps=periods_ahead)
-        df_fcst = self._prep_forecast_df(ts_pred, train_date, forecast_end)
+        df_fcst = self._prep_forecast_df(ts_pred, train_date, forecast_end, as_polars)
         return df_fcst
 
     def cv(self, n_train_dates=None, step_train_dates=None, periods_val=None,
@@ -126,21 +127,21 @@ class Forecaster:
                                   periods_out, periods_val_last, offset_last_date)
 
         t, v, f = self.time_name, self.target_name, self.forecast_name
-        df_fcsts_cv, df_fits_cv = pd.DataFrame({t: []}), pd.DataFrame({t: []})
+        df_fcsts_cv, df_fits_cv = pl.DataFrame(schema={t: pl.Date}), pl.DataFrame(schema={t: pl.Date})
 
         for td, p in zip(train_dates, periods_fcst):
             # keeps forecasts on validation / test / out
-            df_fcst = self.forecast(train_date=td, periods_ahead=p)
-            df_fcst.rename(columns={f: f"{f}_{td.strftime('%Y%m%d')}"}, inplace=True)
-            df_fcsts_cv = pd.merge(df_fcsts_cv, df_fcst, how='outer', on=[self.time_name])
+            df_fcst = self.forecast(train_date=td, periods_ahead=p, as_polars=True)\
+                .rename({f: f"{f}_{td.strftime('%Y%m%d')}"})
+            df_fcsts_cv = df_fcsts_cv.join(df_fcst, how='outer', on=self.time_name)
             # keep fitted values
-            df_fit = self.model.fitted_values().data
-            df_fit.rename(columns={'value': f"fit_{td.strftime('%Y%m%d')}"}, inplace=True)
-            df_fit = df_fit.tail(periods_val)
-            df_fits_cv = pd.merge(df_fits_cv, df_fit, how='outer', on=[self.time_name])
+            df_fit = self.model.fitted_values(as_polars=True) \
+                .rename({'value': f"fit_{td.strftime('%Y%m%d')}"}) \
+                .tail(periods_val)
+            df_fits_cv = df_fits_cv.join(df_fit, how='outer', on=self.time_name)
 
-        df_fcsts_cv.sort_values(by=t, inplace=True)
-        df_fits_cv.sort_values(by=t, inplace=True)
+        df_fcsts_cv = df_fcsts_cv.sort(by=t)
+        df_fits_cv = df_fits_cv.sort(by=t)
 
         metrics_cv = {}
 
@@ -162,6 +163,8 @@ class Forecaster:
         metrics_fit = calc_fcst_error_metrics(self.data.data[[t, v]], df_fits_cv[cols_fit], time_name=t, target_name=v)
         metrics_fit = {k + '_fit': v for k, v in metrics_fit.items()}
         metrics_cv.update(metrics_fit)
+
+        df_fcsts_cv = df_fcsts_cv.to_pandas()
 
         self.df_fcsts_cv, self.metrics_cv = df_fcsts_cv, metrics_cv
         return df_fcsts_cv, metrics_cv
@@ -223,7 +226,7 @@ class Forecaster:
              f" | irreg_val={metrics_cv['irreg_val']:.3f}")
         return s
 
-    def _prep_forecast_df(self, ts_fcst: TsData, train_date=None, forecast_end=None):
+    def _prep_forecast_df(self, ts_fcst: TsData, train_date=None, forecast_end=None, as_polars=False):
         v = ts_fcst.name_value
 
         if self.params['boxcox_lambda'] is not None:
@@ -234,8 +237,8 @@ class Forecaster:
         # if self.params['normalize']:
         #     ts_fcst.data[v] = self._scaler.inverse_transform(ts_fcst.data[v])
 
-        if self.freq_data != self.freq_model:
-            ts_fcst = ts_fcst.disaggregate(to_freq=self.freq_data)
+        # if self.freq_data != self.freq_model:
+        #     ts_fcst = ts_fcst.disaggregate(to_freq=self.freq_data)
 
         if self.params['fcst_min_max']:
             if train_date is not None:
@@ -258,10 +261,16 @@ class Forecaster:
         if train_date is not None:
             ts_fcst.data = ts_fcst.data.loc[pd.to_datetime(train_date) < ts_fcst.time, ]
 
-        df_fcst = pd.DataFrame({
-            self.time_name: np.array(ts_fcst.time),
-            self.forecast_name: np.round(np.array(ts_fcst.target), 5)
-        })
+        if as_polars:
+            df_fcst = pl.DataFrame({
+                self.time_name: ts_fcst.time,
+                self.forecast_name: np.round(ts_fcst.target, 5)
+            }).with_columns(pl.col(self.time_name).cast(pl.Date))
+        else:
+            df_fcst = pd.DataFrame({
+                self.time_name: np.array(ts_fcst.time),
+                self.forecast_name: np.round(np.array(ts_fcst.target), 5)
+            })
 
         return df_fcst
 

@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 import pandas as pd
 import numpy as np
+import polars as pl
+
 from tsfcst.utils import update_nested_dict
 from typing import List, Union, Dict
 from tsfcst.time_series import TsData
@@ -23,8 +25,12 @@ class TsModel(ABC):
         ts_fcst = TsData(dates, values, freq=self.data.freq)
         return ts_fcst
 
-    def fitted_values(self) -> TsData:
-        ts_fcst = TsData(self.data.time, self._fitted_values(), freq=self.data.freq)
+    def fitted_values(self, as_polars=False) -> TsData:
+        if as_polars:
+            ts_fcst = pl.DataFrame({'date': self.data.time, 'value': self._fitted_values()})\
+                .with_columns(pl.col('date').cast(pl.Date))
+        else:
+            ts_fcst = TsData(self.data.time, self._fitted_values(), freq=self.data.freq)
         return ts_fcst
 
     @abstractmethod
