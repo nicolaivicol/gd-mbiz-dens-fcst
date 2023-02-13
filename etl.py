@@ -6,7 +6,7 @@ import config
 def load_raw_data():
     dtypes_train = {
         'row_id': str,
-        'cfips': str,
+        'cfips': pl.Int32,
         'county': str,
         'state': str,
         'first_day_of_month': pl.Date,
@@ -18,7 +18,7 @@ def load_raw_data():
 
     dtypes_test = {
         'row_id': str,
-        'cfips': str,
+        'cfips': pl.Int32,
         'first_day_of_month': pl.Date
     }
     df_test = pl.read_csv(f'{config.DIR_DATA}/test.csv', dtypes=dtypes_test)
@@ -29,7 +29,7 @@ def load_raw_data():
         'pct_bb_2019': pl.Float64,
         'pct_bb_2020': pl.Float64,
         'pct_bb_2021': pl.Float64,
-        'cfips': str,
+        'cfips': pl.Int32,
         'pct_college_2017': pl.Float64,
         'pct_college_2018': pl.Float64,
         'pct_college_2019': pl.Float64,
@@ -59,6 +59,7 @@ def load_raw_data():
 def load_data():
     df_train, df_test, df_census = load_raw_data()
 
+    df_train = df_train.sort(['cfips', 'first_day_of_month'])
     df_train = df_train \
         .with_column((pl.col('active') * 100 / pl.col('microbusiness_density')).round(0).alias('population'))
 
