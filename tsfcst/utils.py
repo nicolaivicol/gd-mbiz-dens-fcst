@@ -1,14 +1,13 @@
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-import plotly.offline as py
-from sklearn.metrics import r2_score
 import collections.abc
 from statsmodels.tsa.seasonal import STL
 import math
 import statsmodels.api as sm
 from scipy import stats
 from itertools import groupby
+import polars as pl
 
 
 def smape(y_true, y_pred, weight=None, ignore_na=True):
@@ -124,27 +123,33 @@ def irreg_rate(x):
 
 def calc_fcst_error_metrics(df_ts, df_fcsts, time_name='date', target_name='value'):
 
-    df = pd.merge(df_fcsts, df_ts[[time_name, target_name]], on=[time_name])
-    df.sort_values(by=[time_name], inplace=True)
-    cols_fcst = [c for c in df_fcsts.columns if c is not time_name]
+    if isinstance(df_ts, pd.DataFrame):
+        df_ts = pl.DataFrame(df_ts).with_columns(pl.col(time_name).cast(pl.Date))
+
+    if isinstance(df_fcsts, pd.DataFrame):
+        df_fcsts = pl.DataFrame(df_fcsts).with_columns(pl.col(time_name).cast(pl.Date))
+
+    df = df_ts[[time_name, target_name]].join(df_fcsts, on=time_name).sort(time_name)
+
+    cols_fcst = [c for c in df_fcsts.columns if c != time_name]
 
     smape_ = []
     irreg_ = []
     for c in cols_fcst:
-        smape_.append(smape(df[target_name], df[c]))
-        irreg_.append(irreg_rate(df[c]))
+        smape_.append(smape(np.array(df[target_name]), np.array(df[c])))
+        irreg_.append(irreg_rate(np.array(df[c])))
 
     # symmetric mean absolute percentage error, avg and std
     smape_avg = round(np.nanmean(smape_), 4)
     smape_std = round(np.nanstd(smape_), 4)
 
     # mean absolute percentage revision of forecasts
-    fcst_avg = df[cols_fcst].mean(axis=1)
-    fcst_min = df[cols_fcst].min(axis=1)
-    fcst_max = df[cols_fcst].max(axis=1)
+    fcst_avg = df[cols_fcst].mean(axis=1).to_numpy()
+    fcst_min = df[cols_fcst].min(axis=1).to_numpy()
+    fcst_max = df[cols_fcst].max(axis=1).to_numpy()
 
     if any(fcst_avg == 0):
-        maprev = round(np.nanmean((fcst_max - fcst_min) / np.mean(np.abs(fcst_avg)+0.00001)) * 100, 4)
+        maprev = round(np.nanmean((fcst_max - fcst_min) / np.nanmean(np.abs(fcst_avg)+0.00001)) * 100, 4)
     else:
         maprev = round(np.nanmean((fcst_max - fcst_min)/np.abs(fcst_avg)) * 100, 4)
 
@@ -176,7 +181,7 @@ def plot_fcsts_and_actual(df_ts, df_fcsts, time_name='date', target_name='value'
     df_idx = pd.DataFrame({time_name: pd.date_range(np.min(df_ts[time_name]), np.max(df_ts[time_name]), freq=freq)})
     df_ts = pd.merge(df_idx, df_ts, how='outer', on=[time_name]).fillna(0)
     df = pd.merge(df_fcsts, df_ts, how='outer', on=[time_name]).sort_values(by=[time_name])
-    cols_fcst = [c for c in df_fcsts.columns if c is not time_name]
+    cols_fcst = [c for c in df_fcsts.columns if c != time_name]
 
     fig = go.Figure()
     fig.add_trace(
@@ -590,3 +595,10 @@ def limit_min_max(y, y_train=None, min_lim=0, max_lim=1e9, min_q=5, min_bend_q=1
 
 def date_range_predict(train_date, steps, freq='D'):
     return pd.date_range(pd.to_datetime(train_date) + pd.DateOffset(1), periods=steps, freq=freq)
+
+
+def get_id_run(target_name, asofdate, model, cv_args, search_args, n_trials, reg_coef, **kwargs):
+    asofdate = pd.to_datetime(asofdate).strftime('%Y%m%d')
+    reg_coef = str(reg_coef).replace('.', '_')
+    return f"{target_name}-{asofdate}-{model}-{cv_args}-{search_args}-{n_trials}-{reg_coef}"
+

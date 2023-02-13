@@ -40,7 +40,7 @@ if 'count' not in st.session_state:
     st.session_state.rand_i = 0
 
 cfips_to_select = ([hs[-1]] if len(hs) > 0 else []) + sorted(list(np.unique(df['cfips'])))
-cfips = st.sidebar.selectbox('Select county (by CFIPS):', cfips_to_select)
+cfips = int(st.sidebar.selectbox('Select county (by CFIPS):', cfips_to_select))
 
 if st.sidebar.button('Select random series'):
     i = random.randint(0, len(df['cfips']) - 1)
@@ -119,7 +119,8 @@ if find_best_params or cache_exists:
     df_trials, best_result, param_importances = ParamsFinder.find_best(
         n_trials=n_trials,
         id_cache=f"{cfips}-{target_name}-{model_alias}-{n_trials}-{str(reg_coef).replace('.', '_')}",
-        use_cache=use_cache
+        use_cache=use_cache,
+        parimp=True,
     )
     log.debug('best_result: \n' + str(best_result))
 
