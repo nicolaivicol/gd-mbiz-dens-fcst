@@ -37,3 +37,34 @@ PLOT_MARGINS_MEDIUM = dict(l=30, r=30, t=30, b=25)
 MAKE_PLOTS = False
 
 DIR_CACHE_TUNE_HYPER_PARAMS_W_OPTUNA = f'{DIR_ARTIFACTS}/cache/paramsfinder-findbest'
+
+CV_ARGS_DICT = {
+    'test': {
+        'n_train_dates': 3,
+        'step_train_dates': 2,
+        'periods_val': 7,
+        'periods_test': 0,
+        'periods_out': 0,
+        'periods_val_last': 5,
+        'offset_last_date': 0
+    },
+    'full': {
+        'n_train_dates': 3,
+        'step_train_dates': 3,
+        'periods_val': 7,
+        'periods_test': 0,
+        'periods_out': 0,
+        'periods_val_last': 5,
+        'offset_last_date': 0
+    }
+}
+
+SEARCH_ARGS_DICT = {
+    'trend_level_damp': {
+        'trend': True,
+        'seasonal': False,
+        'multiplicative': False,
+        'level': True,
+        'damp': True
+    }
+}
