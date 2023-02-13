@@ -15,6 +15,8 @@ from tsfcst.models.inventory import MODELS
 from tsfcst.utils import smape_cv_opt
 
 log = logging.getLogger(os.path.basename(__file__))
+optuna.logging.disable_propagation()
+optuna.logging.disable_default_handler()
 
 
 class ParamsFinder:
@@ -25,6 +27,7 @@ class ParamsFinder:
 
     model_cls: type(TsModel) = None
     data: TsData = None
+    name_objective = 'smape_cv_opt'
 
     # for search space
     trend = True
@@ -89,7 +92,7 @@ class ParamsFinder:
         return os.path.exists(file_df_trials) and os.path.exists(file_best_params) and os.path.exists(file_param_importances)
 
     @staticmethod
-    def find_best(n_trials=100, id_cache='tmp', use_cache=False) -> Tuple[pd.DataFrame, Dict, pd.DataFrame]:
+    def find_best(n_trials=100, id_cache='tmp', use_cache=False, param_importances=True) -> Tuple[pd.DataFrame, Dict, pd.DataFrame]:
         """ run many trials with various combinations of parameters to search for best parameters using optuna """
 
         file_df_trials, file_best_params, file_param_importances = ParamsFinder.get_file_names_cache(id_cache)
@@ -107,8 +110,6 @@ class ParamsFinder:
 
         log.info('find_best() - start search')
         model_cls_name = ParamsFinder.model_cls.__name__
-        # n_trials_model = {'ThetaSmModel': 50, 'MovingAverageModel': 50, 'HoltWintersSmModel': 100, 'ProphetModel': 100}
-        # n_trials = n_trials_model.get(model_cls_name, n_trials)
 
         study = optuna.create_study(study_name=f'{model_cls_name}', direction='minimize')
         study.optimize(ParamsFinder.objective, n_trials=n_trials)
@@ -117,14 +118,18 @@ class ParamsFinder:
         df_trials = pd.DataFrame([dict(zip(metric_names, trial.values), **trial.params) for trial in study.trials])
         df_trials = df_trials.sort_values(by=['smape_cv_opt'], ascending=True).reset_index(drop=True)
         best_result = {'best_value': study.best_value, 'best_params': study.best_params}
-        param_importances = optuna.importance.get_param_importances(study)
-        param_importances = pd.DataFrame({'parameter': param_importances.keys(), 'importance': param_importances.values()})
+
+        if param_importances:
+            param_importances = optuna.importance.get_param_importances(study)
+            param_importances = pd.DataFrame({'parameter': param_importances.keys(), 'importance': param_importances.values()})
 
         # cache
-        df_trials.to_csv(file_df_trials, index=False, float_format='%.4f')
-        param_importances.to_csv(file_param_importances, index=False, float_format='%.4f')
-        with open(file_best_params, 'w') as f:
-            json.dump(best_result, f, indent=2)
+        if use_cache:
+            df_trials.to_csv(file_df_trials, index=False, float_format='%.4f')
+            with open(file_best_params, 'w') as f:
+                json.dump(best_result, f, indent=2)
+            if param_importances:
+                param_importances.to_csv(file_param_importances, index=False, float_format='%.4f')
 
         log.info(f'find_best() - best parameters found: \n'
                  + json.dumps(best_result, indent=2))
