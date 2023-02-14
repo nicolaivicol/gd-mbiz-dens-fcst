@@ -5,7 +5,7 @@ from tsfcst.time_series import TsData
 from tsfcst.models.inventory import ThetaSmModel
 from tsfcst.params_finder import ParamsFinder
 from tsfcst.forecasters.forecaster import Forecaster
-from tsfcst.utils import plot_fcsts_and_actual
+from tsfcst.utils_tsfcst import plot_fcsts_and_actual
 
 
 class TestParamsFinder(unittest.TestCase):

@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import polars as pl
 
-from tsfcst.utils import update_nested_dict
+from tsfcst.utils_tsfcst import update_nested_dict
 from typing import List, Union, Dict
 from tsfcst.time_series import TsData
 

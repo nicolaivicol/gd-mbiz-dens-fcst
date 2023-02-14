@@ -12,7 +12,7 @@ from tsfcst.forecasters.inventory import FORECASTERS
 from tsfcst.time_series import TsData
 from tsfcst.models.abstract_model import TsModel
 from tsfcst.models.inventory import MODELS
-from tsfcst.utils import (
+from tsfcst.utils_tsfcst import (
     calc_fcst_error_metrics,
     treat_outliers,
     smooth_series,

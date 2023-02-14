@@ -595,10 +595,3 @@ def limit_min_max(y, y_train=None, min_lim=0, max_lim=1e9, min_q=5, min_bend_q=1
 
 def date_range_predict(train_date, steps, freq='D'):
     return pd.date_range(pd.to_datetime(train_date) + pd.DateOffset(1), periods=steps, freq=freq)
-
-
-def get_id_run(target_name, asofdate, model, cv_args, search_args, n_trials, reg_coef, **kwargs):
-    asofdate = pd.to_datetime(asofdate).strftime('%Y%m%d')
-    reg_coef = str(reg_coef).replace('.', '_')
-    return f"{target_name}-{asofdate}-{model}-{cv_args}-{search_args}-{n_trials}-{reg_coef}"
-

@@ -3,7 +3,7 @@ import plotly.offline as py
 
 from tsfcst.forecasters.forecaster import Forecaster
 from tsfcst.time_series import TsData
-from tsfcst.utils import plot_fcsts_and_actual
+from tsfcst.utils_tsfcst import plot_fcsts_and_actual
 from tsfcst.models.inventory import HoltWintersSmModel
 
 

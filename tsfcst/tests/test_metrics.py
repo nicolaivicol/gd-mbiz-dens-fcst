@@ -1,6 +1,6 @@
 import unittest
 
-from tsfcst.utils import smape_cv_opt
+from tsfcst.utils_tsfcst import smape_cv_opt
 
 
 class TestMetrics(unittest.TestCase):

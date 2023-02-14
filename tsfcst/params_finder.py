@@ -12,7 +12,7 @@ from tsfcst.time_series import TsData
 from tsfcst.models.abstract_model import TsModel
 from tsfcst.forecasters.forecaster import Forecaster
 from tsfcst.models.inventory import MODELS
-from tsfcst.utils import smape_cv_opt
+from tsfcst.utils_tsfcst import smape_cv_opt
 
 log = logging.getLogger(os.path.basename(__file__))
 optuna.logging.disable_propagation()
