@@ -9,6 +9,7 @@ from scipy.special import boxcox1p, inv_boxcox1p
 # from sklearn.preprocessing import MinMaxScaler
 
 from tsfcst.forecasters.inventory import FORECASTERS
+from tsfcst.forecasters.forecaster_config import ForecasterConfig
 from tsfcst.time_series import TsData
 from tsfcst.models.abstract_model import TsModel
 from tsfcst.models.inventory import MODELS
@@ -96,6 +97,10 @@ class Forecaster:
         config.update(kwargs)
         return cls(model_cls=MODELS[config['model_name']], data=data, **config)
 
+    @classmethod
+    def from_config(cls, data: Union[pd.DataFrame, TsData], cfg: ForecasterConfig):
+        return cls(model_cls=cfg.model_cls, data=data, params_model=cfg.params_model, **cfg.params_forecaster)
+
     @staticmethod
     def trial_params() -> List[Dict]:
         trial_params_ = [
@@ -103,6 +108,14 @@ class Forecaster:
             dict(name='use_data_since', type='categorical', choices=['all', '2020-02-01', '2021-02-01']) #
         ]
         return trial_params_
+
+    @staticmethod
+    def trial_params_full() -> List[Dict]:
+        return Forecaster.trial_params()
+
+    @staticmethod
+    def names_params() -> List[str]:
+        return [p['name'] for p in Forecaster.trial_params_full()]
 
     def fit(self, train_date=None):
         self._data_train = self._prep_data_train(train_date=train_date)
