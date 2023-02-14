@@ -10,7 +10,7 @@ import polars as pl
 import time
 
 import config
-from etl import load_data, get_ts_by_cfips
+from etl import load_data, get_df_ts_by_cfips
 from tsfcst.params_finder import ParamsFinder
 from tsfcst.models.inventory import MODELS
 from tsfcst.time_series import TsData
@@ -22,10 +22,10 @@ log = logging.getLogger(os.path.basename(__file__))
 def eta(n_cfips, model, n_parts, n_trials):
     n_parts = 1 if n_parts is None else n_parts
     sec_per_cfips_100_trials_map = {
-        1: {'theta': 5.2, 'hw': 5.3},
-        4: {'theta': 8.2, 'hw': 9.0},
-        8: {'theta': 10.0, 'hw': 11.0},
-        16: {'theta': 24.0, 'hw': 26.0}
+        1: {'ma': 4, 'theta': 5.2, 'hw': 5.3},
+        4: {'ma': 5, 'theta': 8.2, 'hw': 9.0},
+        8: {'ma': 6, 'theta': 10.0, 'hw': 11.0},
+        16: {'ma': 15, 'theta': 24.0, 'hw': 26.0}
     }
     sec_per_cfips_100_trials = sec_per_cfips_100_trials_map \
         .get(n_parts, sec_per_cfips_100_trials_map[1]) \
@@ -119,7 +119,7 @@ if __name__ == '__main__':
 
     for cfips in tqdm(list_cfips, unit='cfips'):
         log.debug(f'cfips={cfips}')
-        df_ts = get_ts_by_cfips(cfips, target_name, df_train)
+        df_ts = get_df_ts_by_cfips(cfips, target_name, df_train)
         ParamsFinder.data = TsData(df_ts['first_day_of_month'], df_ts[target_name])
 
         try:
