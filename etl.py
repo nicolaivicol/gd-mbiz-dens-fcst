@@ -66,12 +66,12 @@ def load_data():
     return df_train, df_test, df_census
 
 
-def get_ts_by_cfips(cfips, target_name, _df: pl.DataFrame):
+def get_df_ts_by_cfips(cfips, target_name, _df: pl.DataFrame):
     return _df.filter(pl.col('cfips') == cfips).select(['first_day_of_month', target_name])
 
 
 def load_df_ts_by_cfips(cfips, target_name):
     df, _, _ = load_data()
-    df_ts = get_ts_by_cfips(cfips=cfips, target_name=target_name, _df=df)
+    df_ts = get_df_ts_by_cfips(cfips=cfips, target_name=target_name, _df=df)
     return df_ts
 

@@ -4,7 +4,7 @@ import os
 import random
 import logging
 
-from etl import load_data, get_ts_by_cfips
+from etl import load_data, get_df_ts_by_cfips
 from tsfcst.params_finder import ParamsFinder
 from tsfcst.models.inventory import MODELS
 from tsfcst.forecasters.forecaster import Forecaster
@@ -69,7 +69,7 @@ with st.sidebar.expander('CV settings:'):
         help="How many months in the last validation fold.")
     periods_out = 7
 
-df_ts = get_ts_by_cfips(cfips=cfips, target_name=target_name, _df=df)
+df_ts = get_df_ts_by_cfips(cfips=cfips, target_name=target_name, _df=df)
 ts = TsData(df_ts['first_day_of_month'], df_ts[target_name])
 model_cls = MODELS[model_alias]
 

@@ -17,7 +17,7 @@ import config
 HEIGHT_PLOT = 650
 
 
-def describe_numeric(df, cols_num=None, percentiles=None):
+def describe_numeric(df, cols_num=None, percentiles=None, stats_nans=True):
     """
     Describe numeric columns
     :param df: pandas data frame
@@ -32,8 +32,9 @@ def describe_numeric(df, cols_num=None, percentiles=None):
     if len(cols_num) == 0:
         return None
     d_describe = df[cols_num].describe(percentiles=percentiles).T
-    d_describe['count_nan'] = df.isnull().sum()
-    d_describe['prc_nan'] = 1 - d_describe['count'] / float(df.shape[0])
+    if stats_nans:
+        d_describe['count_nan'] = df.isnull().sum()
+        d_describe['prc_nan'] = 1 - d_describe['count'] / float(df.shape[0])
     return d_describe
 
 
