@@ -67,6 +67,10 @@ class TsModel(ABC):
         """ That's to show the full possible search space, unrestricted """
         raise NotImplementedError('trial_params_full() not implemented')
 
+    @staticmethod
+    def names_params() -> List[str]:
+        return [p['name'] for p in TsModel.trial_params_full()]
+
     def flexibility(self) -> float:
         """ Flexibility of the model. We can penalize flexibility to reduce overffiting. """
         raise NotImplementedError('flexibility() not implemented')
