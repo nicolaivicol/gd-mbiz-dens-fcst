@@ -14,7 +14,6 @@ from etl import load_data, get_ts_by_cfips
 from tsfcst.params_finder import ParamsFinder
 from tsfcst.models.inventory import MODELS
 from tsfcst.time_series import TsData
-from tsfcst.utils import get_id_run
 
 
 log = logging.getLogger(os.path.basename(__file__))
@@ -34,8 +33,7 @@ def eta(n_cfips, model, n_parts, n_trials):
     return n_cfips * sec_per_cfips_100_trials * n_trials / 100
 
 
-def parse_args():
-    parser = argparse.ArgumentParser()
+def add_common_args(parser):
     parser.add_argument('-t', '--target_name', default='microbusiness_density',
                         help='options: microbusiness_density, active')
     parser.add_argument('-m', '--model', default='theta',
@@ -46,10 +44,22 @@ def parse_args():
     parser.add_argument('-nt', '--n_trials', default=100, type=int)
     parser.add_argument('-rc', '--reg_coef', default=0.0, type=float)
     parser.add_argument('-aod', '--asofdate', default='2022-07-01')
+    return parser
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser = add_common_args(parser)
     parser.add_argument('-p', '--part', type=int)
     parser.add_argument('-np', '--n_parts', type=int)
     args = parser.parse_args()
     return args
+
+
+def get_id_run(target_name, asofdate, model, cv_args, search_args, n_trials, reg_coef, **kwargs):
+    asofdate = pd.to_datetime(asofdate).strftime('%Y%m%d')
+    reg_coef = str(reg_coef).replace('.', '_')
+    return f"{target_name}-{asofdate}-{model}-{cv_args}-{search_args}-{n_trials}-{reg_coef}"
 
 
 if __name__ == '__main__':
