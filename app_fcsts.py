@@ -9,7 +9,7 @@ from tsfcst.params_finder import ParamsFinder
 from tsfcst.models.inventory import MODELS
 from tsfcst.forecasters.forecaster import Forecaster
 from tsfcst.time_series import TsData
-from tsfcst.utils import plot_fcsts_and_actual
+from tsfcst.utils_tsfcst import plot_fcsts_and_actual
 
 
 log = logging.getLogger(os.path.basename(__file__))
