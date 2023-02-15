@@ -49,60 +49,6 @@ def smape_cv_opt(smape_avg_val, smape_std_val, smape_avg_fit, smape_std_fit, map
     return smape_weighted_fit_val + penalty_std + penalty_diff + penalty_rev + penalty_irreg
 
 
-def mape(y_true, y_pred, weight=None, ignore_na=True, sub_zero_denom='average'):
-    # convert to numpy arrays
-    y_true = np.array(y_true)
-    y_pred = np.array(y_pred)
-
-    # handle zeros in denominator (y_true)
-    y_true_denom = np.array(y_true)
-    if sub_zero_denom == 'average':
-        y_true_denom[y_true_denom == 0] = np.nanmean(y_true_denom) + np.finfo(float).eps
-    elif sub_zero_denom == 'epsilon':
-        y_true_denom[y_true_denom == 0] = np.finfo(float).eps
-
-    # absolute percentage errors
-    error_prc = np.abs((y_true - y_pred) / y_true_denom) * 100
-
-    # ignore nan values
-    if ignore_na:
-        idx = ~np.isnan(error_prc)
-        error_prc = error_prc[idx]
-        if weight is not None:
-            weight = np.array(weight)[idx]
-
-    # mean absolute percentage error
-    if weight is None:
-        r = np.mean(error_prc)
-    else:
-        r = np.sum(error_prc * weight) / np.sum(weight)
-    return r
-
-
-def wape(y_true, y_pred):
-    y_true = np.array(y_true)
-    y_pred = np.array(y_pred)
-    r = np.sum(np.abs(y_true - y_pred))/(np.sum(np.abs(y_true)) + np.finfo(float).eps) * 100
-    return r
-
-
-def error_of_totals(y_true, y_pred):
-    y_true = np.array(y_true)
-    y_pred = np.array(y_pred)
-    r = (np.sum(y_pred) / (np.sum(y_true) + np.finfo(float).eps) - 1) * 100
-    return r
-
-
-def mape_agg(y_true, y_pred, agg_chunk_size=30, sub_zero_denom='average'):
-    chunk = np.floor(np.array(range(0, len(y_true))) / agg_chunk_size)
-    d = pd.DataFrame({"y_true": np.array(y_true), "y_pred": np.array(y_pred), "chunk": chunk})
-    d = d.loc[(~np.isnan(d['y_true'])) & (~np.isnan(d['y_pred']))]
-    agg_sum = d.groupby(['chunk']).sum()
-    weight = d.groupby(['chunk']).count()['y_true']
-    r = mape(agg_sum['y_true'], agg_sum['y_pred'], weight=weight, sub_zero_denom=sub_zero_denom)
-    return r
-
-
 def irreg_rate(x):
     x = np.array(x)
     if len(x) <= 2:
@@ -355,17 +301,6 @@ def get_hurst(x, lag_size: int = 30) -> float:
 
     # Return the Hurst exponent from the polyfit output
     return poly[0] if not np.isnan(poly[0]) else 0
-
-
-if False:
-    import random
-    import time
-    x = [random.random() for _ in range(1000)]
-    tic = time.time()
-    for i in range(1000):
-        iqr_m_ratio(x, 10)
-    toc = time.time()
-    print(toc - tic)
 
 
 def trunc_num_values_in_dict_to_min_max(dict_, min_val=-99999, max_val=99999):
