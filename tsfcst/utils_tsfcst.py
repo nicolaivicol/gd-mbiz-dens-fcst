@@ -10,7 +10,7 @@ from itertools import groupby
 import polars as pl
 
 
-def smape(y_true, y_pred, weight=None, ignore_na=True):
+def smape(y_true, y_pred, weight=None):
     y_true, y_pred = np.array(y_true), np.array(y_pred)
     denominator = (np.abs(y_true) + np.abs(y_pred)) / 2
     nominator = np.abs(y_true - y_pred)
@@ -18,21 +18,21 @@ def smape(y_true, y_pred, weight=None, ignore_na=True):
     # if both y_true and y_pred are zeros, then error_prc is 0
     error_prc[denominator == 0] = 0.0
 
-    # ignore nan values
-    if ignore_na:
-        idx = ~np.isnan(error_prc)
-        error_prc = error_prc[idx]
-        if weight is not None:
-            weight = np.array(weight)[idx]
-
-    if len(error_prc) == 0:
-        return np.NaN
+    # # ignore nan values
+    # if ignore_na:
+    #     idx = ~np.isnan(error_prc)
+    #     error_prc = error_prc[idx]
+    #     if weight is not None:
+    #         weight = np.array(weight)[idx]
+    #
+    # if len(error_prc) == 0:
+    #     return np.NaN
 
     # mean absolute percentage error
     if weight is None:
-        r = np.mean(error_prc)
+        r = np.nanmean(error_prc)
     else:
-        r = np.sum(error_prc * weight) / np.sum(weight)
+        r = np.nansum(error_prc * weight) / np.nansum(weight)
 
     return r
 
