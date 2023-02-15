@@ -69,11 +69,16 @@ class WeightsFinder:
             return WeightsFinder.equal_weights()
 
     @staticmethod
+    def params_corners():
+        names = WeightsFinder.model_names
+        return [(np.array(names) == name_) * 1.0 for name_ in names]
+
+    @staticmethod
     def trials_params_predefined():
         names = WeightsFinder.model_names
 
         # variations of weights as best guesses to help the optimizer to search
-        corners = [(np.array(names) == name_) * 1.0 for name_ in names]
+        corners = WeightsFinder.params_corners()
         equal_weights_ = WeightsFinder.equal_weights()
         best_lsq_linear_ = WeightsFinder.best_lsq_linear()
         best_cvxpy_ = WeightsFinder.best_cvxpy()
