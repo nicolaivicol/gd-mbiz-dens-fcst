@@ -11,9 +11,8 @@ import glob
 
 import config
 from etl import load_data, get_df_ts_by_cfips
-from tsfcst.forecasters.forecaster_config import ForecasterConfig
 from tsfcst.time_series import TsData
-from tsfcst.forecasters.forecaster import Forecaster
+from tsfcst.forecasters.forecaster import Forecaster, ForecasterConfig
 from tsfcst.find_best_params import add_common_args, get_id_run
 
 
