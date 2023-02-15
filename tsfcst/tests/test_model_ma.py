@@ -1,4 +1,4 @@
-from tsfcst.tests.utils import TestModel
+from tsfcst.tests.utils_tests import TestModel
 from tsfcst.models.inventory import MovingAverageModel
 
 

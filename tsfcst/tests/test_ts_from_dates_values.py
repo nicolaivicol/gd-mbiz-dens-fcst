@@ -3,7 +3,7 @@ import pandas as pd
 import polars as pl
 
 from tsfcst.time_series import from_dates_values
-from tsfcst.tests import utils as test_utils
+from tsfcst.tests import utils_tests as test_utils
 
 
 class TestTsFromDatesValues(unittest.TestCase):
