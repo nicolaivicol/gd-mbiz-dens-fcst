@@ -121,15 +121,19 @@ class ParamsFinder:
 
         param_importances = None
         if parimp:
-            param_importances = optuna.importance.get_param_importances(study)
-            param_importances = pd.DataFrame({'parameter': param_importances.keys(), 'importance': param_importances.values()})
+            try:
+                param_importances = optuna.importance.get_param_importances(study)
+                param_importances = pd.DataFrame({'parameter': param_importances.keys(),
+                                                  'importance': param_importances.values()})
+            except RuntimeError as e:
+                pass
 
         # cache
         if use_cache:
             df_trials.to_csv(file_df_trials, index=False, float_format='%.4f')
             with open(file_best_params, 'w') as f:
                 json.dump(best_result, f, indent=2)
-            if parimp:
+            if param_importances is not None:
                 param_importances.to_csv(file_param_importances, index=False, float_format='%.4f')
 
         log.info(f'find_best() - best parameters found: \n'
