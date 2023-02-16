@@ -1,7 +1,8 @@
 import unittest
 import pandas as pd
 
-from tsfcst.forecasters.forecaster import Forecaster
+from tsfcst.models.inventory import ThetaSmModel
+from tsfcst.forecasters.forecaster import Forecaster, ForecasterConfig
 from tsfcst.time_series import TsData
 
 
@@ -9,8 +10,10 @@ class TestForecaster(unittest.TestCase):
 
     @classmethod
     def setUpClass(self):
-        self.df_ts = TsData.sample_monthly()
-        self.fcster = Forecaster.from_named_configs(data=self.df_ts, config_name='hw')
+        df_ts = TsData.sample_monthly()
+        cfg = ForecasterConfig(ThetaSmModel, {}, {})
+        self.df_ts = df_ts
+        self.fcster = Forecaster.from_config(data=df_ts, cfg=cfg)
 
     def test_forecast(self):
         periods_ahead = 6
