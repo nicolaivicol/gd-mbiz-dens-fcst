@@ -10,7 +10,6 @@ import polars as pl
 import config
 from etl import load_data
 from tsfcst.weights_finder import WeightsFinder
-from utils import describe_numeric
 
 
 log = logging.getLogger(os.path.basename(__file__))
