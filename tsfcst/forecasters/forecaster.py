@@ -4,11 +4,8 @@ import pandas as pd
 import polars as pl
 import warnings
 from typing import List, Dict, Union
-import copy
 from scipy.special import boxcox1p, inv_boxcox1p
-# from sklearn.preprocessing import MinMaxScaler
 
-from tsfcst.forecasters.inventory import FORECASTERS
 from tsfcst.time_series import TsData
 from tsfcst.models.abstract_model import TsModel
 from tsfcst.models.inventory import MODELS
@@ -115,12 +112,6 @@ class Forecaster:
         self.metrics_cv = None
 
     @classmethod
-    def from_named_configs(cls, data: Union[pd.DataFrame, TsData], config_name: str, **kwargs) -> 'Forecaster':
-        config = copy.deepcopy(FORECASTERS[config_name])
-        config.update(kwargs)
-        return cls(model_cls=MODELS[config['model_name']], data=data, **config)
-
-    @classmethod
     def from_config(cls, data: Union[pd.DataFrame, TsData], cfg: ForecasterConfig):
         return cls(model_cls=cfg.model_cls, data=data, params_model=cfg.params_model, **cfg.params_forecaster)
 
@@ -146,11 +137,12 @@ class Forecaster:
         self.model = self.model_cls(data=self._data_train, params=self.params_model, data_exog=self._data_exog_train)
         self.model.fit()
 
-    def forecast(self, periods_ahead: int = None, train_date=None, forecast_end=None, as_polars=False) -> Union[pd.DataFrame, pl.DataFrame]:
+    def forecast(self, periods_ahead: int = None, train_date=None, forecast_end=None,
+                 as_polars=False, as_ts=False) -> Union[pd.DataFrame, pl.DataFrame, TsData]:
         periods_ahead, train_date, forecast_end = self._prep_args_predict(periods_ahead, train_date, forecast_end, self.freq_model)
         self.fit(train_date=train_date)
         ts_pred = self.model.predict(steps=periods_ahead)
-        df_fcst = self._prep_forecast_df(ts_pred, train_date, forecast_end, as_polars)
+        df_fcst = self._prep_forecast_df(ts_pred, train_date, forecast_end, as_polars, as_ts)
         return df_fcst
 
     def cv(self, n_train_dates=None, step_train_dates=None, periods_val=None,
@@ -262,7 +254,7 @@ class Forecaster:
              f" | irreg_val={metrics_cv['irreg_val']:.3f}")
         return s
 
-    def _prep_forecast_df(self, ts_fcst: TsData, train_date=None, forecast_end=None, as_polars=False):
+    def _prep_forecast_df(self, ts_fcst: TsData, train_date=None, forecast_end=None, as_polars=False, as_ts=False):
         v = ts_fcst.name_value
 
         if self.params['boxcox_lambda'] is not None:
@@ -297,7 +289,9 @@ class Forecaster:
         if train_date is not None:
             ts_fcst.data = ts_fcst.data.loc[pd.to_datetime(train_date) < ts_fcst.time, ]
 
-        if as_polars:
+        if as_ts:
+            return ts_fcst
+        elif as_polars:
             df_fcst = pl.DataFrame({
                 self.time_name: ts_fcst.time,
                 self.forecast_name: np.round(ts_fcst.target, 5)
