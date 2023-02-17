@@ -21,9 +21,9 @@ log = logging.getLogger(os.path.basename(__file__))
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--target_name', default='microbusiness_density', help='microbusiness_density, active')
-    parser.add_argument('-g', '--tag', default='full', help='options: test, full')
-    parser.add_argument('-a', '--asofdate', default='2022-10-01')
-    parser.add_argument('-n', '--periodsahead', default=8, type=int, help='3 for test, 8 for full')
+    parser.add_argument('-g', '--tag', default='test_w_ideal_weights', help='options: test, full')
+    parser.add_argument('-a', '--asofdate', default='2022-07-01')
+    parser.add_argument('-n', '--periodsahead', default=3, type=int, help='3 for test, 8 for full')
     parser.add_argument('-s', '--selected_trials', default='best', help='options: best, top10')
     # best params:
     parser.add_argument('-i', '--naive', default='microbusiness_density-20220701-naive-test-trend_level_damp-1-0_0')
@@ -31,7 +31,7 @@ def parse_args():
     parser.add_argument('-e', '--theta', default='microbusiness_density-20220701-theta-test-trend_level_damp-100-0_0')
     parser.add_argument('-w', '--hw', default='microbusiness_density-20220701-hw-test-trend_level_damp-100-0_0')
     # best weights:
-    parser.add_argument('-v', '--weights', default='microbusiness_density-cv-20220701')
+    parser.add_argument('-v', '--weights', default='microbusiness_density-test-20221001')  # microbusiness_density-cv-20220701, microbusiness_density-test-20221001
 
     args = parser.parse_args()
     return args
