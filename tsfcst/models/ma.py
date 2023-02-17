@@ -53,6 +53,10 @@ class MovingAverageModel(TsModel):
     def trial_params_full():
         return MovingAverageModel.trial_params()
 
+    @staticmethod
+    def names_params():
+        return [p['name'] for p in MovingAverageModel.trial_params_full()]
+
     def flexibility(self):
         flexibility = 0
         avg_factor = {'simple': 1, 'weighted': 1.5, 'exponential': 2}[self.params['average']]

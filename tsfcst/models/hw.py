@@ -143,6 +143,10 @@ class HoltWintersSmModel(TsModel):
         params_trial.append(dict(name='damping_trend_max', type='float', low=0.75, high=1.00))
         return params_trial
 
+    @staticmethod
+    def names_params():
+        return [p['name'] for p in HoltWintersSmModel.trial_params_full()]
+
     def flexibility(self):
         flexibility = 0
         flexibility += self.model_fit.params['smoothing_level'] ** 2

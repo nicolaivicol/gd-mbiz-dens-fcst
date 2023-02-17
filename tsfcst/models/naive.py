@@ -29,5 +29,9 @@ class NaiveModel(TsModel):
     def trial_params_full():
         return NaiveModel.trial_params()
 
+    @staticmethod
+    def names_params():
+        return [p['name'] for p in NaiveModel.trial_params_full()]
+
     def flexibility(self):
         return 0

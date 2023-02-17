@@ -69,7 +69,7 @@ class TsModel(ABC):
 
     @staticmethod
     def names_params() -> List[str]:
-        return [p['name'] for p in TsModel.trial_params_full()]
+        raise NotImplementedError
 
     def flexibility(self) -> float:
         """ Flexibility of the model. We can penalize flexibility to reduce overffiting. """
