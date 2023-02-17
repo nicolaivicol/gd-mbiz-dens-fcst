@@ -28,7 +28,7 @@ def describe_numeric(df, cols_num=None, percentiles=None, stats_nans=True):
     if cols_num is None:
         cols_num = list(df.head(1).select_dtypes(include=['number']).columns)
     if percentiles is None:
-        percentiles = [0.05, 0.25, 0.50, 0.75, 0.95]
+        percentiles = [0.05, 0.25, 0.50, 0.75, 0.95, 0.98, 0.99]
     if len(cols_num) == 0:
         return None
     d_describe = df[cols_num].describe(percentiles=percentiles).T

@@ -1,14 +1,50 @@
+import numpy as np
 import polars as pl
 import logging
 import os
 
 import config
 from utils import describe_numeric, set_display_options
+from etl import load_data
+from tsfcst.utils_tsfcst import smape
 
 log = logging.getLogger(os.path.basename(__file__))
 
 
 set_display_options()
+
+df_train, _, _ = load_data()
+
+dir_fcsts = f'{config.DIR_ARTIFACTS}/forecast_ensemble'
+
+fcsts_to_compare = {
+    'ens': 'microbusiness_density-test-20220701'
+}
+
+df_smapes = None
+
+for name_fcst, run_id in fcsts_to_compare.items():
+    df_fcsts = pl.read_csv(f'{dir_fcsts}/{run_id}/fcsts_all_models.csv', parse_dates=True)\
+        .with_columns(pl.col('cfips').cast(pl.Int32))
+
+    df_fcst = df_train \
+        .select(['cfips', 'first_day_of_month', 'microbusiness_density']) \
+        .rename({'first_day_of_month': 'date', 'microbusiness_density': 'actual'}) \
+        .join(df_fcsts.select(['cfips', 'date', 'ensemble']), on=['cfips', 'date'])
+
+    list_smape = []
+    for cfips in sorted(list(np.unique(df_fcst['cfips']))):
+        tmp = df_fcst.filter(pl.col('cfips') == cfips)
+        smape_ = smape(tmp['actual'], tmp['ensemble'])
+        list_smape.append({'cfips': cfips, name_fcst: smape_})
+
+    df_smape = pl.DataFrame(list_smape)
+
+    if df_smapes is None:
+        df_smapes = df_smape
+    else:
+        df_smapes = df_smapes.join(df_smape, on='cfips')
+
 
 setups_to_compare = {
     'naive': 'microbusiness_density-20220701-naive-test-trend_level_damp-1-0_0',
@@ -34,6 +70,8 @@ for alias_, run_id in setups_to_compare.items():
     else:
         df = df.join(df_alias, on='cfips')
 
+df = df.join(df_smapes, on='cfips')
+
 summary_ = describe_numeric(df.to_pandas(), stats_nans=False)
 
 log.info('\n' + str(summary_))
@@ -48,3 +86,4 @@ log.info('\n' + str(summary_))
 # smape_avg_test_theta 3135.000     2.169     4.836    0.000    0.244     0.609     1.190     2.341     6.245   155.340
 # smape_avg_val_hw     3135.000     3.324     6.235    0.000    0.605     1.104     1.849     3.459     9.623   165.440
 # smape_avg_test_hw    3135.000     3.599     6.532    0.000    0.317     0.989     1.986     3.963    11.278   163.856
+# ens                  3135.000     2.791     4.841    0.000    0.290     0.789     1.592     3.093     8.581    95.927
