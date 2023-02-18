@@ -6,8 +6,13 @@ from pandas.api.types import (
     is_numeric_dtype,
     is_object_dtype,
 )
+import glob
+import polars as pl
 
-st.set_page_config(layout="wide", page_title='Explore df')
+
+from utils import describe_numeric
+
+st.set_page_config(layout="wide", page_title='Explore Table')
 
 
 def filter_dataframe(df: pd.DataFrame) -> pd.DataFrame:
@@ -85,18 +90,31 @@ def filter_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+tab0, tab1, tab2 = st.tabs(['File', 'Table', 'Summary'])
 
-file_path_txt = st.text_input(
-    "File path:",
-)
 
-if file_path_txt:
-    df = pd.read_csv(file_path_txt)
+with tab0:
+    file_path_txt = st.text_input("File path:")
 
-    if 'smape_avg_val' in df.columns and 'smape_avg_test' in df.columns:
-        df['diff_smape_val_test'] = df['smape_avg_val'] - df['smape_avg_test']
+df = None
 
-    st.dataframe(filter_dataframe(df))
+with tab1:
+    if file_path_txt:
+
+        if file_path_txt.endswith('.csv'):
+            df = pd.read_csv(file_path_txt)
+        else:
+            files_ = glob.glob(f'{file_path_txt}/*.csv')
+            df = pl.concat([pl.read_csv(f) for f in files_]).to_pandas()
+
+        if 'smape_avg_val' in df.columns and 'smape_avg_test' in df.columns:
+            df['diff_smape_val_test'] = df['smape_avg_val'] - df['smape_avg_test']
+
+        st.dataframe(filter_dataframe(df))
+
+with tab2:
+    if df is not None:
+        st.table(describe_numeric(df))
 
 
 # streamlit run app_explore_df.py --server.port 8001
