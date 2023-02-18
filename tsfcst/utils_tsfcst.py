@@ -184,51 +184,74 @@ def update_nested_dict(d, u):
     return d
 
 
+def last_n_from_x(x, last_n=None) -> np.ndarray:
+    x = np.array(x)
+    if last_n is not None:
+        x = x[-min(len(x), last_n):]
+    return x
+
+
+def prc_diffs(x):
+    prc_diffs = np.diff(x) / np.maximum(x[:-1], 0.001)
+    prc_diffs = np.maximum(np.minimum(0.9999, prc_diffs), -0.9999)
+    return prc_diffs * 100
+
+
 def prc_zeros(x, last_n=None):
-    if last_n is None:
-        return np.mean(np.array(x) == 0)
-    else:
-        x_last = x[-min(len(x), last_n):]
-        return np.mean(np.array(x_last) == 0)
+    x = last_n_from_x(x, last_n)
+    return np.mean(np.array(x) == 0)
 
 
 def prc_lte(x, small, last_n=None):
-    if last_n is None:
-        return np.mean(np.array(x) <= small)
-    else:
-        x_last = x[-min(len(x), last_n):]
-        return np.mean(np.array(x_last) <= small)
+    x = last_n_from_x(x, last_n)
+    return np.mean(np.array(x) <= small)
 
 
 def prc_gt(x, threshold, last_n=None):
-    if last_n is None:
-        return np.mean(np.array(x) > threshold)
-    else:
-        x_last = x[-min(len(x), last_n):]
-        return np.mean(np.array(x_last) > threshold)
+    x = last_n_from_x(x, last_n)
+    return np.mean(np.array(x) > threshold)
 
 
 def sd_m_ratio(x, last_n=None):
-    if last_n is not None:
-        x = x[-min(len(x), last_n):]
+    x = last_n_from_x(x, last_n)
     return min(9.99, np.nanstd(np.array(x))/(np.nanmean(np.abs(np.array(x))) + 0.001))
 
 
+def prc_change_lte(x, small, last_n=None):
+    x = last_n_from_x(x, last_n)
+    return np.mean(np.abs(prc_diffs(x)) <= small)
+
+
+def mean_prc_change(x, last_n=None):
+    x = last_n_from_x(x, last_n)
+    return np.mean(prc_diffs(x))
+
+
+def smape_wrt_avg(x, last_n=None):
+    x = last_n_from_x(x, last_n)
+    avg = np.nanmean(x)
+    denom = (np.abs(avg) + np.abs(x)) / 2
+    abs_prc_errors = np.abs(x - avg) / denom
+    abs_prc_errors[denom == 0] = 0
+    mean_abs_prc_errors = np.nanmean(abs_prc_errors) * 100
+    mean_abs_prc_errors = min(99.999, mean_abs_prc_errors)
+    return mean_abs_prc_errors
+
+
 def avg(x, last_n=None):
-    if last_n is not None:
-        x = x[-min(len(x), last_n):]
+    x = last_n_from_x(x, last_n)
     return np.nanmean(x)
 
 
 def perc(x, p=50, last_n=None):
-    if last_n is not None:
-        x = x[-min(len(x), last_n):]
+    x = last_n_from_x(x, last_n)
     return np.nanpercentile(x, p)
 
 
-def iqr_m_ratio(x, q_up=75, q_lo=25):
-    q_up_ = np.nanpercentile(np.array(x), q_up)
-    q_lo_ = np.nanpercentile(np.array(x), q_lo)
+def iqr_m_ratio(x, q_up=75, q_lo=25, last_n=None):
+    x = last_n_from_x(x, last_n)
+    q_up_ = np.nanpercentile(x, q_up)
+    q_lo_ = np.nanpercentile(x, q_lo)
     return min(99, (q_up_ - q_lo_) / (q_up_ + 0.0001))
 
 
@@ -244,18 +267,25 @@ def q_trend(x, last_n):
     return (perc(x, 50, last_n) - perc(x, 10))/(perc(x, 90) - perc(x, 10) + 0.001)
 
 
-def get_lin_reg_summary(y):
+def get_lin_reg_summary(y, last_n=None):
+    y = last_n_from_x(y, last_n)
     try:
         slope, intercept, r, p, se = stats.linregress(np.arange(len(y)), y)
+        avg_abs_y = np.mean(np.abs(y))
+        if avg_abs_y == 0:
+            avg_abs_y = 0.001
+        slope = slope / avg_abs_y
     except:
         slope, intercept, r, p, se = 0, 0, -1, 1, 99
 
     return {'slope': slope, 'intercept': intercept, 'r_squared': np.sign(r)*r**2, 'p_value': p, 'se': se}
 
 
-def get_stability(x: np.ndarray, window_size: int = 10) -> float:
-    v = [np.mean(x_w) for x_w in np.array_split(x, len(x) // window_size + 1)]
-    return np.nanvar(v)
+def get_stability(x: np.ndarray, window_size: int = 6, last_n=None) -> float:
+    x = last_n_from_x(x, last_n)
+    means_ = np.array([np.mean(x_w) for x_w in np.array_split(x, len(x) // window_size + 1)])
+    prc_abs_diffs = np.abs(means_ / np.mean(x) - 1)
+    return np.mean(prc_abs_diffs) * 100
 
 
 def get_lumpiness(x: np.ndarray, window_size: int = 10) -> float:
@@ -263,20 +293,22 @@ def get_lumpiness(x: np.ndarray, window_size: int = 10) -> float:
     return np.nanvar(v)
 
 
-def get_crossing_points(x: np.ndarray) -> float:
-    median = np.nanmedian(x)
+def get_crossing_points(x: np.ndarray, last_n=None) -> float:
+    x = last_n_from_x(x, last_n)
+    median_ = np.nanmedian(x)
     cp = 0
     for i in range(len(x) - 1):
-        if x[i] <= median < x[i + 1] or x[i] >= median > x[i + 1]:
+        if x[i] <= median_ < x[i + 1] or x[i] >= median_ > x[i + 1]:
             cp += 1
     return cp
 
 
-def get_binarize_mean(x: np.ndarray) -> float:
-    return np.nanmean(np.asarray(x) > np.nanmean(x))
+def get_binarize_mean(x: np.ndarray, last_n=None) -> float:
+    x = last_n_from_x(x, last_n)
+    return np.nanmean(x > np.nanmean(x))
 
 
-def get_flat_spots(x: np.ndarray, nbins: int = 10) -> int:
+def get_flat_spots(x: np.ndarray, nbins: int = 5) -> int:
     x = np.array(x)
 
     if len(x) <= nbins:
@@ -291,7 +323,7 @@ def get_flat_spots(x: np.ndarray, nbins: int = 10) -> int:
     return max_run_length
 
 
-def get_hurst(x, lag_size: int = 30) -> float:
+def get_hurst(x, lag_size: int = 12) -> float:
     """
     Getting: Hurst Exponent wiki: https://en.wikipedia.org/wiki/Hurst_exponent
     Args:
@@ -327,44 +359,47 @@ def trunc_num_values_in_dict_to_min_max(dict_, min_val=-99999, max_val=99999):
 
 def get_feats(x, min_val=-99999, max_val=99999):
     lin_reg_summary_ = get_lin_reg_summary(x)
+    lin_reg_summary_10 = get_lin_reg_summary(x, 10)
     feats = {
-        'len': len(x),
-        'n_gt_0': n_gt(x, 0),
         'avg': avg(x),
-        'avg_last_30': avg(x, 30),
-        'avg_last_90': avg(x, 90),
-        'avg_last_180': avg(x, 180),
-        'prc_gt_0': prc_gt(x, 0),
-        'prc_gt_0_last_30': prc_gt(x, 0, 30),
-        'prc_gt_0_last_90': prc_gt(x, 0, 90),
-        'prc_gt_0_last_180': prc_gt(x, 0, 180),
-        'prc_gt_1': prc_gt(x, 1),
-        'prc_gt_1_last_30': prc_gt(x, 1, 30),
-        'prc_gt_1_last_90': prc_gt(x, 1, 90),
-        'prc_gt_1_last_180': prc_gt(x, 1, 180),
-        'prc_gt_10': prc_gt(x, 10),
-        'prc_gt_10_last_30': prc_gt(x, 10, 30),
-        'prc_gt_10_last_90': prc_gt(x, 10, 90),
-        'prc_gt_10_last_180': prc_gt(x, 10, 180),
-        'sd_m_ratio': sd_m_ratio(x),
-        'sd_m_ratio_last_30': sd_m_ratio(x, 30),
-        'sd_m_ratio_last_90': sd_m_ratio(x, 90),
-        'sd_m_ratio_last_180': sd_m_ratio(x, 180),
+        'smape2avg': smape_wrt_avg(x),
+        'smape2avg_3': smape_wrt_avg(x, 3),
+        'smape2avg_5': smape_wrt_avg(x, 5),
+        'smape2avg_10': smape_wrt_avg(x, 10),
+        'smape2avg_20': smape_wrt_avg(x, 20),
         'iqr_m_ratio': iqr_m_ratio(x),
-        'q_trend_30': q_trend(x, 30),
-        'q_trend_90': q_trend(x, 90),
+        'iqr_m_ratio_5': iqr_m_ratio(x, last_n=5),
+        'iqr_m_ratio_10': iqr_m_ratio(x, last_n=10),
+        'prc_zeros': prc_zeros(x),
+        'prc_zeros_1': prc_zeros(x, 1),
+        'prc_zeros_5': prc_zeros(x, 5),
+        'prc_zeros_lte_1': prc_lte(x, small=1),
+        'prc_zeros_gte_5': prc_gt(x, threshold=5),
+        'prc_zeros_lte_1_10': prc_lte(x, small=1, last_n=10),
+        'prc_zeros_gte_5_10': prc_gt(x, threshold=5, last_n=10),
+        'prc_change_lte_0': prc_change_lte(x, small=0),
+        'prc_change_lte_0_10': prc_change_lte(x, small=0, last_n=10),
+        'prc_change_lte_1': prc_change_lte(x, small=1),
+        'prc_change_lte_1_10': prc_change_lte(x, small=1, last_n=10),
+        'q_trend_1': q_trend(x, 1),
+        'q_trend_5': q_trend(x, 5),
+        'q_trend_10': q_trend(x, 10),
         'r_sq': lin_reg_summary_['r_squared'],
         'slope': lin_reg_summary_['slope'],
         'p_value': lin_reg_summary_['p_value'],
+        'r_sq_10': lin_reg_summary_10['r_squared'],
+        'slope_10': lin_reg_summary_10['slope'],
+        'p_value_10': lin_reg_summary_10['p_value'],
         'stability': get_stability(x),
-        'lumpiness': get_lumpiness(x),
-        'n_cross_pts': get_crossing_points(x),
+        # 'lumpiness': get_lumpiness(x),
+        # 'n_cross_pts': get_crossing_points(x),
         'prc_cross_pts': get_crossing_points(x) / len(x),
+        'prc_cross_pts_10': get_crossing_points(x, 10) / min(len(x), 10),
         'bin_mean': get_binarize_mean(x),
-        'flat_spots': get_flat_spots(x),
+        'bin_mean_10': get_binarize_mean(x, 10),
         'prc_flat_spots': get_flat_spots(x) / len(x),
+        'hurst_5': get_hurst(x, 5),
         'hurst_10': get_hurst(x, 10),
-        'hurst_30': get_hurst(x, 30),
     }
     feats = trunc_num_values_in_dict_to_min_max(feats, min_val, max_val)
     return feats
