@@ -123,10 +123,10 @@ def plotly_add_time_slider(fig, visible=True):
     return fig
 
 
-def plot_fcsts_and_actual(df_ts, df_fcsts, time_name='date', target_name='value', freq='MS'):
-    df_idx = pd.DataFrame({time_name: pd.date_range(np.min(df_ts[time_name]), np.max(df_ts[time_name]), freq=freq)})
-    df_ts = pd.merge(df_idx, df_ts, how='outer', on=[time_name]).fillna(0)
-    df = pd.merge(df_fcsts, df_ts, how='outer', on=[time_name]).sort_values(by=[time_name])
+def plot_fcsts_and_actual(df_actual, df_fcsts, time_name='date', target_name='value', freq='MS', colors=None):
+    df_idx = pd.DataFrame({time_name: pd.date_range(np.min(df_actual[time_name]), np.max(df_actual[time_name]), freq=freq)})
+    df_actual = pd.merge(df_idx, df_actual, how='outer', on=[time_name]).fillna(0)
+    df = pd.merge(df_fcsts, df_actual, how='outer', on=[time_name]).sort_values(by=[time_name])
     cols_fcst = [c for c in df_fcsts.columns if c != time_name]
 
     fig = go.Figure()
@@ -141,16 +141,29 @@ def plot_fcsts_and_actual(df_ts, df_fcsts, time_name='date', target_name='value'
     )
     for i, c in enumerate(sorted(cols_fcst)):
         tmp = df.loc[df[c].notnull()] #  & df[c] >= 0
+
+        if colors is not None:
+            opacity_ = 0.6
+            color_ = colors.get(c, 'red') if isinstance(colors, dict) else colors[min(i, len(colors) - 1)]
+            line_ = dict(color=color_, width=2)
+            if c == 'ensemble':
+                opacity_ = 0.8
+                line_ = dict(color=color_, width=3)
+        else:
+            opacity_ = 0.4 + i * 0.4 / len(cols_fcst)
+            line_ = dict(color='red', width=2)
+
         fig.add_trace(
             go.Scatter(
                 x=tmp[time_name],
                 y=np.round(tmp[c], 4),
                 name=c,
                 mode='lines+markers',
-                opacity=0.4 + i * 0.4 / len(cols_fcst),
-                line=dict(color='red', width=2))
+                opacity=opacity_,
+                line=line_
+            )
         )
-    min_ = np.min(df[[target_name]+cols_fcst].min(axis=1, skipna=True))
+    min_ = np.min(df[[target_name] + cols_fcst].min(axis=1, skipna=True))
     max_ = np.max(df[[target_name] + cols_fcst].max(axis=1, skipna=True))
     fig.update_layout(autosize=True, legend=dict(x=0, y=1, bgcolor='rgba(0,0,0,0)'),
                       yaxis_range=[min(max(0.95*min_, 0.90*max_), 0.98*min_),
