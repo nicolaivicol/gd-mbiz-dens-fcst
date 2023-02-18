@@ -8,6 +8,7 @@ import statsmodels.api as sm
 from scipy import stats
 from itertools import groupby
 import polars as pl
+from tsfcst.chow_test import chow_test
 
 
 def smape(y_true, y_pred, weight=None):
@@ -184,6 +185,16 @@ def update_nested_dict(d, u):
     return d
 
 
+def chowtest(y, last_index):
+    chow_value, p_value = chow_test(
+        X_series=pd.Series(range(len(y))),
+        y_series=pd.Series(y),
+        last_index=int(last_index),
+        first_index=int(last_index) + 1,
+    )
+    return chow_value, p_value
+
+
 def last_n_from_x(x, last_n=None) -> np.ndarray:
     x = np.array(x)
     if last_n is not None:
@@ -272,11 +283,12 @@ def get_lin_reg_summary(y, last_n=None):
     try:
         slope, intercept, r, p, se = stats.linregress(np.arange(len(y)), y)
         avg_abs_y = np.mean(np.abs(y))
-        if avg_abs_y == 0:
-            avg_abs_y = 0.001
-        slope = slope / avg_abs_y
+        try:
+            slope = slope / avg_abs_y
+        except ZeroDivisionError:
+            slope = 0
     except:
-        slope, intercept, r, p, se = 0, 0, -1, 1, 99
+        slope, intercept, r, p, se = 0, 0, 0, 1, 99
 
     return {'slope': slope, 'intercept': intercept, 'r_squared': np.sign(r)*r**2, 'p_value': p, 'se': se}
 
@@ -357,7 +369,8 @@ def trunc_num_values_in_dict_to_min_max(dict_, min_val=-99999, max_val=99999):
     return dict_
 
 
-def get_feats(x, min_val=-99999, max_val=99999):
+def get_feats(x, min_val=-999, max_val=999):
+    x = np.array(x)
     lin_reg_summary_ = get_lin_reg_summary(x)
     lin_reg_summary_10 = get_lin_reg_summary(x, 10)
     feats = {
@@ -373,10 +386,10 @@ def get_feats(x, min_val=-99999, max_val=99999):
         'prc_zeros': prc_zeros(x),
         'prc_zeros_1': prc_zeros(x, 1),
         'prc_zeros_5': prc_zeros(x, 5),
-        'prc_zeros_lte_1': prc_lte(x, small=1),
-        'prc_zeros_gte_5': prc_gt(x, threshold=5),
-        'prc_zeros_lte_1_10': prc_lte(x, small=1, last_n=10),
-        'prc_zeros_gte_5_10': prc_gt(x, threshold=5, last_n=10),
+        'prc_lte_1': prc_lte(x, small=1),
+        'prc_gte_5': prc_gt(x, threshold=5),
+        'prc_lte_1_10': prc_lte(x, small=1, last_n=10),
+        'prc_gte_5_10': prc_gt(x, threshold=5, last_n=10),
         'prc_change_lte_0': prc_change_lte(x, small=0),
         'prc_change_lte_0_10': prc_change_lte(x, small=0, last_n=10),
         'prc_change_lte_1': prc_change_lte(x, small=1),
