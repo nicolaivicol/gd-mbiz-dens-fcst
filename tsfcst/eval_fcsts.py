@@ -77,6 +77,14 @@ summary_ = describe_numeric(df.to_pandas(), stats_nans=False)
 
 log.info('\n' + str(summary_))
 
+# LB:
+# weights from cv give 2.4887
+# weights from last 3 periods gives 1.5172
+# weights to sum-up to 1 give 1.4278
+# naive gives 1.0939
+
+
+# local:
 #                            count      mean       std      min       5%       25%       50%       75%       95%       98%       99%       max
 # cfips                   3135.000 30376.038 15145.863 1001.000 5096.400 18178.000 29173.000 45076.000 53063.600 55063.640 55124.320 56045.000
 # smape_avg_val_naive     3135.000     3.151     4.233    0.000    0.735     1.322     2.056     3.563     8.449    12.760    18.813    95.165
