@@ -25,7 +25,7 @@ class WeightsFinder:
 
     @staticmethod
     def trial_params(trial: optuna.Trial) -> np.array:
-        pars = [trial.suggest_float(name=name_, low=0, high=1, step=0.10) for name_ in WeightsFinder.model_names]
+        pars = [trial.suggest_float(name=name_, low=0, high=1, step=0.05) for name_ in WeightsFinder.model_names]
         return np.array(pars)
 
     @staticmethod
@@ -47,7 +47,9 @@ class WeightsFinder:
             weights = res.x
             assert isinstance(weights, np.ndarray)
             assert all(weights >= 0)
-            return np.round(weights, 4)
+            assert any(weights > 0)
+            weights = weights / np.sum(weights)
+            return np.round(weights, 5)
         except:
             return WeightsFinder.equal_weights()
 
@@ -64,6 +66,8 @@ class WeightsFinder:
             weights = beta.value
             assert isinstance(weights, np.ndarray)
             assert all(weights >= 0)
+            assert any(weights > 0)
+            weights = weights / np.sum(weights)
             return np.round(weights, 4)
         except:
             return WeightsFinder.equal_weights()
@@ -136,7 +140,8 @@ class WeightsFinder:
         study.add_trials(WeightsFinder.trials_params_predefined())  # add trials for corner cases
         study.optimize(WeightsFinder.objective, n_trials=n_trials)  # search the entire space
 
-        weights = list(study.best_params.values())
+        weights = np.array(list(study.best_params.values()))
+        weights = weights / np.sum(weights)
         smape_ = WeightsFinder.smape(weights)
 
         res = {

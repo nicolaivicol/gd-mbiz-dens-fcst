@@ -21,9 +21,9 @@ log = logging.getLogger(os.path.basename(__file__))
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--target_name', default='microbusiness_density', help='microbusiness_density, active')
-    parser.add_argument('-g', '--tag', default='test_w_ideal_weights', help='options: test, full')
-    parser.add_argument('-a', '--asofdate', default='2022-07-01')
-    parser.add_argument('-n', '--periodsahead', default=3, type=int, help='3 for test, 8 for full')
+    parser.add_argument('-g', '--tag', default='full-naive', help='options: test, full')
+    parser.add_argument('-a', '--asofdate', default='2022-10-01')
+    parser.add_argument('-n', '--periodsahead', default=8, type=int, help='3 for test, 8 for full')
     parser.add_argument('-s', '--selected_trials', default='best', help='options: best, top10')
     # best params:
     parser.add_argument('-i', '--naive', default='microbusiness_density-20220701-naive-test-trend_level_damp-1-0_0')
@@ -78,7 +78,12 @@ if __name__ == '__main__':
     log.debug('loading best weights')
     dir_best_weights = f'{config.DIR_ARTIFACTS}/find_best_weights/{weights_name}'
     files_best_weights = glob.glob(f'{dir_best_weights}/*.csv')
-    df_best_weights = pl.concat([pl.read_csv(f) for f in glob.glob(f'{dir_best_weights}/*.csv')])
+    df_best_weights = pl.concat([pl.read_csv(f) for f in files_best_weights])
+    # reweight to have sum of weights = 1:
+    df_best_weights = df_best_weights.with_columns(pl.sum(model_names).alias('sum_weights'))
+    for model_name in model_names:
+        df_best_weights = df_best_weights.with_columns(pl.col(model_name) / pl.col('sum_weights'))
+    df_best_weights = df_best_weights.drop('sum_weights')
 
     log.debug('generate forecast for each cfips')
     list_fcsts = []
@@ -96,6 +101,7 @@ if __name__ == '__main__':
 
         # load best weights
         best_weights = df_best_weights.filter(pl.col('cfips') == cfips).select(model_names).to_dicts()[0]
+        # best_weights = {'naive': 1, 'ma': 0, 'theta': 0, 'hw': 0}
 
         ens = Ensemble(data=ts, fcster_configs=best_cfgs, weights=best_weights)
         fcst = ens.forecast(periodsahead)

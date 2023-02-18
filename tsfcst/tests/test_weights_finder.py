@@ -63,4 +63,5 @@ class TestWeightsFinder(unittest.TestCase):
                   'theta': WeightsFinder.smape([0, 0, 1, 0]),
                   'hw': WeightsFinder.smape([0, 0, 0, 1]),
               }, indent=2))
-        print(res['study'].trials_dataframe().sort_values('value').head(10))
+        print('10 best trials:\n', res['study'].trials_dataframe().sort_values('value').head(10))
+        print('predefined trials:\n', res['study'].trials_dataframe().head(8))
