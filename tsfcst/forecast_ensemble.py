@@ -20,7 +20,7 @@ log = logging.getLogger(os.path.basename(__file__))
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-t', '--target_name', default='microbusiness_density', help='microbusiness_density, active')
+    parser.add_argument('-t', '--target_name', default='active', help='microbusiness_density, active')
     parser.add_argument('-g', '--tag', default='full-naive', help='options: test, full')
     parser.add_argument('-a', '--asofdate', default='2022-10-01')
     parser.add_argument('-n', '--periodsahead', default=8, type=int, help='3 for test, 8 for full')
@@ -32,6 +32,8 @@ def parse_args():
     parser.add_argument('-w', '--hw', default='microbusiness_density-20220701-hw-test-trend_level_damp-100-0_0')
     # best weights:
     parser.add_argument('-v', '--weights', default='microbusiness_density-test-20221001')  # microbusiness_density-cv-20220701, microbusiness_density-test-20221001
+    # (estimated) population to divide to when target_name=active
+    parser.add_argument('-p', '--population', default='est_pop_25_35_40')
 
     args = parser.parse_args()
     return args
@@ -54,6 +56,7 @@ if __name__ == '__main__':
     model_names = list(dict_best_params_run_id.keys())
     weights_name = args.weights
     selected_trials = args.selected_trials
+    population = args.population
 
     id_run = f"{target_name}-{tag}-{asofdate.replace('-', '')}"
     dir_out = f'{config.DIR_ARTIFACTS}/{Path(__file__).stem}/{id_run}'
@@ -109,6 +112,15 @@ if __name__ == '__main__':
         list_fcsts.append(fcst)
 
     df_fcsts = pl.concat(list_fcsts)
+
+    if target_name == 'active':
+        df_pop = pl.read_csv(f'{config.DIR_DATA}/{population}.csv', parse_dates=True) \
+            .rename({'first_day_of_month': 'date'}) \
+            .with_columns(pl.col('cfips').cast(pl.Int32))
+        df_fcsts = df_fcsts.join(df_pop, on=['cfips', 'date'], how='left')
+        for name in (model_names + ['ensemble']):
+            df_fcsts = df_fcsts.with_columns((pl.col(name) / pl.col('population') * 100).alias(name))
+
     file_fcsts = f'{dir_out}/fcsts_all_models.csv'
     df_fcsts.write_csv(file_fcsts)
     log.info(f'all forecasts saved to {file_fcsts}')
