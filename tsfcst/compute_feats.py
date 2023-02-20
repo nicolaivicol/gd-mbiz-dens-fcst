@@ -21,8 +21,8 @@ set_display_options()
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-t', '--targetname', default='microbusiness_density', help='microbusiness_density, active')
-    parser.add_argument('-a', '--asofdate', default='2022-07-01')
+    parser.add_argument('-t', '--targetname', default='active', help='microbusiness_density, active')
+    parser.add_argument('-a', '--asofdate', default='2022-10-01')
     args = parser.parse_args()
     return args
 
@@ -30,6 +30,10 @@ def parse_args():
 def get_id_run(targetname, asofdate: str, **kwargs):
     asofdate = asofdate.replace('-', '')
     return f"{targetname}-{asofdate}"
+
+
+def load_feats(feats_name):
+    return pl.read_csv(f'{config.DIR_ARTIFACTS}/compute_feats/{feats_name}/feats.csv')
 
 
 if __name__ == '__main__':
@@ -58,12 +62,14 @@ if __name__ == '__main__':
 
     list_feats = []
     for cfips in tqdm(list_cfips, unit='cfips', miniters=10, mininterval=3):
-        # log.debug(f'cfips={cfips}')
         df_ts = get_df_ts_by_cfips(cfips, targetname, df_train)
         ts = TsData(df_ts['first_day_of_month'], df_ts[targetname])
+
         feats = get_feats(df_ts[targetname])
-        lastidx_20210101 = np.where(ts.time == pd.to_datetime('2021-01-01'))[0][0]  # ts.time.index(cfips)
+
+        lastidx_20210101 = np.where(ts.time == pd.to_datetime('2021-01-01'))[0][0]
         chow_value, p_value = chowtest(ts.target, lastidx_20210101)
+
         feats = {**{'cfips': cfips}, **feats, **{'chow_val_20210101': chow_value, 'chow_pval_20210101': p_value}}
         list_feats.append(feats)
 

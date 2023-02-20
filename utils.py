@@ -25,6 +25,10 @@ def describe_numeric(df, cols_num=None, percentiles=None, stats_nans=True):
     :param percentiles: percentiles to compute, default: [0.05, 0.25, 0.50, 0.75, 0.95]
     :return: pandas df with stats
     """
+
+    if isinstance(df, pd.Series) or isinstance(df, np.ndarray) or isinstance(df, list):
+        df = pd.DataFrame({'value': df})
+
     if cols_num is None:
         cols_num = list(df.head(1).select_dtypes(include=['number']).columns)
     if percentiles is None:

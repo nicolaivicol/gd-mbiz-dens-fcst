@@ -6,6 +6,7 @@ from tqdm import tqdm
 import json
 import numpy as np
 import polars as pl
+import glob
 
 import config
 from etl import load_data
@@ -30,6 +31,22 @@ def parse_args():
     parser.add_argument('-x', '--nparts', type=int)
     args = parser.parse_args()
     return args
+
+
+def load_best_weights(weights_id, model_names = None):
+    dir_best_weights = f'{config.DIR_ARTIFACTS}/find_best_weights/{weights_id}'
+    files_best_weights = glob.glob(f'{dir_best_weights}/*.csv')
+    df_best_weights = pl.concat([pl.read_csv(f) for f in files_best_weights])
+
+    # reweight to have sum of weights = 1:
+    if model_names is None:
+        model_names = ['naive', 'ma', 'theta', 'hw']
+    df_best_weights = df_best_weights.with_columns(pl.sum(model_names).alias('sum_weights'))
+    for model_name in model_names:
+        df_best_weights = df_best_weights.with_columns(pl.col(model_name) / pl.col('sum_weights'))
+    df_best_weights = df_best_weights.drop('sum_weights')
+
+    return df_best_weights
 
 
 if __name__ == '__main__':

@@ -290,7 +290,7 @@ def get_lin_reg_summary(y, last_n=None):
     except:
         slope, intercept, r, p, se = 0, 0, 0, 1, 99
 
-    return {'slope': slope, 'intercept': intercept, 'r_squared': np.sign(r)*r**2, 'p_value': p, 'se': se}
+    return {'slope': slope, 'intercept': intercept, 'r_squared': r**2, 'p_value': p, 'se': se}
 
 
 def get_stability(x: np.ndarray, window_size: int = 6, last_n=None) -> float:
@@ -369,7 +369,7 @@ def trunc_num_values_in_dict_to_min_max(dict_, min_val=-99999, max_val=99999):
     return dict_
 
 
-def get_feats(x, min_val=-999, max_val=999):
+def get_feats(x, min_val=-9999, max_val=9999):
     x = np.array(x)
     lin_reg_summary_ = get_lin_reg_summary(x)
     lin_reg_summary_10 = get_lin_reg_summary(x, 10)
@@ -386,10 +386,10 @@ def get_feats(x, min_val=-999, max_val=999):
         'prc_zeros': prc_zeros(x),
         'prc_zeros_1': prc_zeros(x, 1),
         'prc_zeros_5': prc_zeros(x, 5),
-        'prc_lte_1': prc_lte(x, small=1),
-        'prc_gte_5': prc_gt(x, threshold=5),
-        'prc_lte_1_10': prc_lte(x, small=1, last_n=10),
-        'prc_gte_5_10': prc_gt(x, threshold=5, last_n=10),
+        'prc_small': prc_lte(x, small=20),
+        'prc_small_10': prc_lte(x, small=20, last_n=10),
+        'prc_not_small': prc_gt(x, threshold=100),
+        'prc_not_small_10': prc_gt(x, threshold=100, last_n=10),
         'prc_change_lte_0': prc_change_lte(x, small=0),
         'prc_change_lte_0_10': prc_change_lte(x, small=0, last_n=10),
         'prc_change_lte_1': prc_change_lte(x, small=1),

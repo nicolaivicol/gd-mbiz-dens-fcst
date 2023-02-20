@@ -14,6 +14,7 @@ from tsfcst.ensemble import Ensemble
 from tsfcst.forecasters.forecaster import ForecasterConfig
 from tsfcst.time_series import TsData
 from utils import get_submit_file_name
+from tsfcst.find_best_weights import load_best_weights
 
 log = logging.getLogger(os.path.basename(__file__))
 
@@ -79,14 +80,7 @@ if __name__ == '__main__':
         dict_df_best_params[name] = df_best_params
 
     log.debug('loading best weights')
-    dir_best_weights = f'{config.DIR_ARTIFACTS}/find_best_weights/{weights_name}'
-    files_best_weights = glob.glob(f'{dir_best_weights}/*.csv')
-    df_best_weights = pl.concat([pl.read_csv(f) for f in files_best_weights])
-    # reweight to have sum of weights = 1:
-    df_best_weights = df_best_weights.with_columns(pl.sum(model_names).alias('sum_weights'))
-    for model_name in model_names:
-        df_best_weights = df_best_weights.with_columns(pl.col(model_name) / pl.col('sum_weights'))
-    df_best_weights = df_best_weights.drop('sum_weights')
+    df_best_weights = load_best_weights(weights_name)
 
     log.debug('generate forecast for each cfips')
     list_fcsts = []
@@ -105,6 +99,8 @@ if __name__ == '__main__':
         # load best weights
         best_weights = df_best_weights.filter(pl.col('cfips') == cfips).select(model_names).to_dicts()[0]
         # best_weights = {'naive': 1, 'ma': 0, 'theta': 0, 'hw': 0}
+        # best_weights = {'naive': 0.30, 'ma': 0.20, 'theta': 0.30, 'hw': 0.20}
+        # best_weights = {'naive': 0, 'ma': 0, 'theta': 1.00, 'hw': 0}
 
         ens = Ensemble(data=ts, fcster_configs=best_cfgs, weights=best_weights)
         fcst = ens.forecast(periodsahead)
