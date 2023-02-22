@@ -3,6 +3,7 @@ from tsfcst.models.hw import HoltWintersSmModel
 from tsfcst.models.prophet import ProphetModel
 from tsfcst.models.theta import ThetaSmModel
 from tsfcst.models.naive import NaiveModel
+from tsfcst.models.arima import ArimaAutoModel
 
 MODELS = {
     'naive': NaiveModel,
@@ -10,4 +11,5 @@ MODELS = {
     'theta': ThetaSmModel,
     'hw': HoltWintersSmModel,
     'prophet': ProphetModel,
+    'arima': ArimaAutoModel,
 }

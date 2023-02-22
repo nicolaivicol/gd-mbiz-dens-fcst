@@ -51,3 +51,7 @@ class TestModel(unittest.TestCase):
         assert np.absolute(np.array(f.target) / np.array(self.ts_out.target) - 1).mean() < th_mape
         assert m.flexibility() >= 0
 
+        f_in_sample = m.fitted_values()
+        assert all(self.ts_in.time == f_in_sample.time)
+        assert len(f_in_sample.target) == len(self.ts_in)
+        assert np.absolute(np.array(f_in_sample.target) / np.array(self.ts_in.target) - 1).mean() < th_mape
