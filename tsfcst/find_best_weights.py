@@ -22,11 +22,14 @@ def parse_args():
     parser.add_argument('-g', '--tag', default='test', help='options: cv, test, full')
     parser.add_argument('-a', '--asofdate', default='2022-10-01')
     parser.add_argument('-f', '--fromdate', default='2022-08-01')
+    parser.add_argument('-m', '--method', default='find_best', help='options: find_best, find_from_errors, find_best_corner')
     parser.add_argument('-n', '--ntrials', default=200, type=int)
+    # sources of forecasts on validation / test folds
     parser.add_argument('-i', '--naive', default='microbusiness_density-20220701-naive-test-trend_level_damp-1-0_0')
     parser.add_argument('-o', '--ma', default='microbusiness_density-20220701-ma-test-trend_level_damp-100-0_0')
     parser.add_argument('-e', '--theta', default='microbusiness_density-20220701-theta-test-trend_level_damp-100-0_0')
     parser.add_argument('-w', '--hw', default='microbusiness_density-20220701-hw-test-trend_level_damp-100-0_0')
+    # partition
     parser.add_argument('-p', '--part', type=int)
     parser.add_argument('-x', '--nparts', type=int)
     args = parser.parse_args()
@@ -52,7 +55,7 @@ def load_best_weights(weights_id, model_names = None):
 if __name__ == '__main__':
     args = parse_args()
 
-    # python -m tsfcst.find_best_weights -t microbusiness_density -g test -a 2022-10-01 -f 2022-08-01 -n 200 -i "microbusiness_density-20220701-naive-test-trend_level_damp-1-0_0" -o "microbusiness_density-20220701-ma-test-trend_level_damp-100-0_0" -e "microbusiness_density-20220701-theta-test-trend_level_damp-100-0_0" -w "microbusiness_density-20220701-hw-test-trend_level_damp-100-0_0"
+    # python -m tsfcst.find_best_weights -t microbusiness_density -g test -a 2022-10-01 -f 2022-08-01 -m find_best_corner -n 200 -i "microbusiness_density-20220701-naive-test-trend_level_damp-1-0_0" -o "microbusiness_density-20220701-ma-test-trend_level_damp-100-0_0" -e "microbusiness_density-20220701-theta-test-trend_level_damp-100-0_0" -w "microbusiness_density-20220701-hw-test-trend_level_damp-100-0_0"
 
     log.info(f'Running {os.path.basename(__file__)} with parameters: \n'
              + json.dumps(vars(args), indent=2))
@@ -63,12 +66,13 @@ if __name__ == '__main__':
     asofdate = args.asofdate
     fromdate = args.fromdate
     ntrials = args.ntrials
+    method = args.method
     part = args.part
     nparts = args.nparts
     dict_models_id_run = {'naive': args.naive, 'ma': args.ma, 'theta': args.theta, 'hw': args.hw}
     model_names = list(dict_models_id_run.keys())
 
-    id_run = f"{target_name}-{tag}-{asofdate.replace('-', '')}"
+    id_run = f"{target_name}-{tag}-{method}-{asofdate.replace('-', '')}"
     dir_out = f'{config.DIR_ARTIFACTS}/{Path(__file__).stem}/{id_run}'
     os.makedirs(dir_out, exist_ok=True)
 
@@ -137,7 +141,14 @@ if __name__ == '__main__':
         WeightsFinder.y_preds = df_cfips[model_names].to_numpy()
         WeightsFinder.model_names = model_names
 
-        res = WeightsFinder.find_best(n_trials=ntrials)
+        if method == 'find_best':
+            res = WeightsFinder.find_best(n_trials=ntrials)
+        elif method == 'find_from_errors':
+            res = WeightsFinder.find_from_errors()
+        elif method == 'find_best_corner':
+            res = WeightsFinder.find_best_corner()
+        else:
+            raise ValueError(f'method={method} is not supported')
 
         msg_str = ' | '.join([f"{name_}={w:.2f}" for name_, w in res['best_params'].items()])
         log.debug(f'best weights: ' + msg_str)
@@ -149,7 +160,7 @@ if __name__ == '__main__':
         res_dict = {
             **{'cfips': cfips, 'smape': np.round(res['smape'], 4)},
             **res['best_params'],
-            **{'weights_arr': json.dumps(res['weights']),
+            **{'weights_arr': json.dumps(list(res['weights'])),
                'weights_dict': json.dumps(res['best_params'])},
         }
         list_res.append(res_dict)
