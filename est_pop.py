@@ -5,25 +5,40 @@ import plotly.graph_objects as go
 import plotly.offline as py
 import numpy as np
 import polars as pl
-from datetime import date
+from datetime import date, datetime
 
 import config
 from etl import load_data
+from utils import describe_numeric, set_display_options
 
-
+set_display_options()
 log = logging.getLogger(os.path.basename(__file__))
 
-WEIGHTS_LAST_3Y = [0.20, 0.30, 0.35]
-#WEIGHTS_LAST_3Y = [0.00, 0.00, 0.00]
+WEIGHTS_LAST_3Y = [0.00, 0.00, 0.00]
+# WEIGHTS_LAST_3Y = [0.15, 0.25, 0.30]
+# WEIGHTS_LAST_3Y = [0.20, 0.30, 0.35]
+# WEIGHTS_LAST_3Y = [0.25, 0.35, 0.40]
 
 df_train, _, _ = load_data()
 
-# manual fix when active is zero and population can't be infered
-df_train = df_train.with_columns(
-    pl.when((pl.col('cfips') == 28055) & pl.col('population').is_nan())
-    .then(pl.lit(1185))
-    .otherwise(pl.col('population'))
-    .alias('population'))
+# manual fix when active is zero and population can't be inferred
+map_replace_nans = [
+    {'cfips': 28055, 'from_date': '2021-02-01', 'to_date': '2021-12-01', 'value': 1162},
+    {'cfips': 28055, 'from_date': '2022-01-01', 'to_date': '2022-10-01', 'value': 1185},
+    {'cfips': 48301, 'from_date': '2020-01-01', 'to_date': '2020-03-01', 'value': 78},
+    {'cfips': 48301, 'from_date': '2021-02-01', 'to_date': '2022-03-01', 'value': 73},
+]
+
+for d in map_replace_nans:
+    cfips, from_date, to_date, value = d.values()
+    df_train = df_train.with_columns(
+        pl.when((pl.col('cfips') == cfips)
+                & pl.col('first_day_of_month').is_between(datetime.strptime(from_date, "%Y-%m-%d").date(),
+                                                          datetime.strptime(to_date, "%Y-%m-%d").date())
+                & pl.col('population').is_nan())
+        .then(pl.lit(value))
+        .otherwise(pl.col('population'))
+        .alias('population'))
 
 df_pop = df_train \
     .select(['cfips', 'first_day_of_month', 'population']) \
@@ -65,22 +80,24 @@ df_full = df_cfips \
                   .alias('population')) \
     .select(['cfips', 'first_day_of_month', 'population'])
 
+print(describe_numeric(df_full.to_pandas()))
 
 id = '_'.join([str(int(w*100)) for w in WEIGHTS_LAST_3Y])
 df_full.write_csv(f'{config.DIR_DATA}/est_pop_{id}.csv')
-
-cfips = random.choice(np.unique(df_train['cfips']))
-tmp = df_full.filter(pl.col('cfips') == cfips)
+log.debug('saved estimated population to: ' + f'{config.DIR_DATA}/est_pop_{id}.csv')
 
 fig = go.Figure()
-fig.add_trace(
-    go.Scatter(
-        x=tmp['first_day_of_month'],
-        y=tmp['population'],
-        name=f'population',
-        mode='lines+markers',
-        opacity=0.7,
-        line=dict(color='black', width=2))
-)
-fig.update_layout(title=f'cfips={cfips}')
-py.plot(fig)
+for _ in range(100):
+    cfips = random.choice(np.unique(df_train['cfips']))
+    tmp = df_full.filter(pl.col('cfips') == cfips)
+    fig.add_trace(
+        go.Scatter(
+            x=tmp['first_day_of_month'],
+            y=tmp['population'],
+            name=str(cfips),
+            mode='lines+markers',
+            opacity=0.7
+        )
+    )
+fig.update_layout(title='populations')
+py.plot(fig, filename=f'temp-plot-est_pop_{id}.html')
