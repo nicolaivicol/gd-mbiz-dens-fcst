@@ -65,3 +65,22 @@ class TestWeightsFinder(unittest.TestCase):
               }, indent=2))
         print('10 best trials:\n', res['study'].trials_dataframe().sort_values('value').head(10))
         print('predefined trials:\n', res['study'].trials_dataframe().head(8))
+
+    def test_from_errors(self):
+        WeightsFinder.y_true = self.y_true
+        WeightsFinder.y_preds = self.y_preds
+        WeightsFinder.model_names = list(self.fcsts.keys())
+
+        tic = time.time()
+        res = WeightsFinder.find_from_errors()
+
+        print(f'time elapsed: {time.strftime("%Hh %Mmin %Ssec", time.gmtime(time.time() - tic))}')
+        print('best weights: ', res['best_params'])
+        print('smape: \n',
+              json.dumps({
+                  'best': WeightsFinder.smape(res['weights']),
+                  'naive': WeightsFinder.smape([1, 0, 0, 0]),
+                  'ma': WeightsFinder.smape([0, 1, 0, 0]),
+                  'theta': WeightsFinder.smape([0, 0, 1, 0]),
+                  'hw': WeightsFinder.smape([0, 0, 0, 1]),
+              }, indent=2))
