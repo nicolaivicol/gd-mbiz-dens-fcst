@@ -1,8 +1,8 @@
 from tsfcst.tests.utils_tests import TestModel
-from tsfcst.models.inventory import ArimaAutoModel
+from tsfcst.models.inventory import ArimaModel
 
 
 class TestArimaAutoModel(TestModel):
 
     def test_general(self):
-        self.general(ArimaAutoModel)
+        self.general(ArimaModel)
