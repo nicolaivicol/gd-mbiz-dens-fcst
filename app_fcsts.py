@@ -84,8 +84,12 @@ level = st.sidebar.checkbox('level', True)
 damp = st.sidebar.checkbox('damp', True)
 
 n_trials = st.sidebar.select_slider(
-    label="Trials:", value=100, options=[25, 50, 75, 100, 125, 150, 200],
-    help="How many trials to run when searching best params.")
+    label="Trials TPE:", value=100, options=[0, 25, 50, 75, 100, 125, 150, 200],
+    help="How many trials to run via TPE.")
+
+n_trials_grid = st.sidebar.select_slider(
+    label="Trials Grid:", value=0, options=[0, 25, 50, 75, 100, 125, 150, 200],
+    help="How many trials to run via grid search.")
 
 reg_coef = st.sidebar.select_slider(
     label="Reg coef:", value=0, options=[0, 0.01, 0.02, 0.05, 0.10, 0.5, 1, 5, 10, 20, 50, 100, 1000],
@@ -95,7 +99,7 @@ use_cache = st.sidebar.checkbox('use_cache', True)
 
 fig_paralel_coords, df_trials, best_result, fig_imp, best_result_median = None, None, None, None, None
 
-id_cache = f"{cfips}-{target_name}-{model_alias}-{n_trials}-{str(reg_coef).replace('.', '_')}"
+id_cache = f"{cfips}-{target_name}-{model_alias}-{n_trials}-{n_trials_grid}-{str(reg_coef).replace('.', '_')}"
 cache_exists = ParamsFinder.cache_exists(id_cache)
 
 if find_best_params or cache_exists:
@@ -118,7 +122,8 @@ if find_best_params or cache_exists:
 
     df_trials, best_result, param_importances = ParamsFinder.find_best(
         n_trials=n_trials,
-        id_cache=f"{cfips}-{target_name}-{model_alias}-{n_trials}-{str(reg_coef).replace('.', '_')}",
+        n_trials_grid=n_trials_grid,
+        id_cache=id_cache,
         use_cache=use_cache,
         parimp=True,
     )
