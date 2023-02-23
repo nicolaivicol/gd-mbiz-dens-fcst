@@ -70,6 +70,11 @@ class ThetaSmModel(TsModel):
     def names_params():
         return [p['name'] for p in ThetaSmModel.trial_params_full()]
 
+    @staticmethod
+    def trial_params_grid(trend=True, seasonal=True, multiplicative=True, level=True, damp=False):
+        trial_params_ = ThetaSmModel.trial_params(trend, seasonal, multiplicative, level, damp)
+        return TsModel.trial_params_grid(trial_params_)
+
     def flexibility(self):
         use_mle = float(self.params['use_mle'])
         flexibility = (1 + use_mle) * (self.params['theta'] - 0.99) ** 2
