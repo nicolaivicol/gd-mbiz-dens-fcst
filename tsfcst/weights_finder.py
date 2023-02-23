@@ -78,16 +78,22 @@ class WeightsFinder:
         return [(np.array(names) == name_) * 1.0 for name_ in names]
 
     @staticmethod
-    def trials_params_predefined():
+    def trials_params_predefined(include_corners=True, include_optims=True):
         names = WeightsFinder.model_names
 
         # variations of weights as best guesses to help the optimizer to search
-        corners = WeightsFinder.params_corners()
-        equal_weights_ = WeightsFinder.equal_weights()
-        best_lsq_linear_ = WeightsFinder.best_lsq_linear()
-        best_cvxpy_ = WeightsFinder.best_cvxpy()
-        avg_bests = (best_lsq_linear_ + best_cvxpy_) / 2
-        weights_vars = corners + [equal_weights_, best_lsq_linear_, best_cvxpy_, avg_bests]
+        weights_vars = []
+
+        if include_corners:
+            corners = WeightsFinder.params_corners()
+            weights_vars.extend(corners)
+
+        if include_optims:
+            equal_weights_ = WeightsFinder.equal_weights()
+            best_lsq_linear_ = WeightsFinder.best_lsq_linear()
+            best_cvxpy_ = WeightsFinder.best_cvxpy()
+            avg_bests = (best_lsq_linear_ + best_cvxpy_) / 2
+            weights_vars.extend([equal_weights_, best_lsq_linear_, best_cvxpy_, avg_bests])
 
         trials = []
         for weights in weights_vars:
@@ -153,3 +159,49 @@ class WeightsFinder:
         }
 
         return res
+
+    @staticmethod
+    def find_best_corner():
+        study = optuna.create_study(direction='minimize')
+        study.add_trials(WeightsFinder.trials_params_predefined(include_corners=True, include_optims=False))  # add trials for corner cases
+
+        weights = np.array(list(study.best_params.values()))
+        weights = weights / np.sum(weights)
+        smape_ = WeightsFinder.smape(weights)
+
+        res = {
+            'smape': smape_,
+            'weights': weights,
+            'best_value': study.best_value,
+            'best_params': study.best_params,
+            'study': study
+        }
+
+        return res
+
+    @staticmethod
+    def find_from_errors(squared=True, exp=False, eps=1e-6):
+        corners = WeightsFinder.params_corners()
+        errors = np.array([WeightsFinder.smape(weights=weights) for weights in corners])
+        weights = 1 / (errors + eps)
+
+        if squared:
+            weights = np.square(weights)
+
+        if exp:
+            weights = np.exp(weights)
+
+        weights = np.round(weights / np.sum(weights), 4)
+        smape_ = WeightsFinder.smape(weights)
+
+        res = {
+            'smape': smape_,
+            'weights': weights,
+            'best_value': WeightsFinder.smape_penalized(weights),
+            'best_params': {m: w for m, w in zip(WeightsFinder.model_names, weights)},
+            'errors': errors,
+        }
+
+        return res
+
+

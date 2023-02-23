@@ -39,6 +39,8 @@ def parse_args():
 def load_best_weights(weights_id, model_names = None):
     dir_best_weights = f'{config.DIR_ARTIFACTS}/find_best_weights/{weights_id}'
     files_best_weights = glob.glob(f'{dir_best_weights}/*.csv')
+    if len(files_best_weights) == 0:
+        raise ValueError(f'files not found in {dir_best_weights}')
     df_best_weights = pl.concat([pl.read_csv(f) for f in files_best_weights])
 
     # reweight to have sum of weights = 1:
