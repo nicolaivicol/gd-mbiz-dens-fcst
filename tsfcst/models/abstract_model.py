@@ -2,9 +2,11 @@ from abc import ABC, abstractmethod
 import pandas as pd
 import numpy as np
 import polars as pl
+import itertools
+from typing import List, Union, Dict
+from optuna.distributions import IntDistribution, FloatDistribution, CategoricalDistribution
 
 from tsfcst.utils_tsfcst import update_nested_dict
-from typing import List, Union, Dict
 from tsfcst.time_series import TsData
 
 
@@ -70,6 +72,40 @@ class TsModel(ABC):
     @staticmethod
     def names_params() -> List[str]:
         raise NotImplementedError
+
+    @staticmethod
+    def trial_params_grid(trial_params: List[Dict]) -> List[Dict]:
+        trial_params_dict = {def_['name']: def_ for def_ in trial_params}
+        names, values = [], []
+
+        for name, def_ in trial_params_dict.items():
+            names.append(name)
+            if def_['type'] == 'int':
+                values.append(list(range(def_['low'], def_['high'] + 1)))
+            elif def_['type'] == 'float':
+                values.append(list(np.linspace(def_['low'], def_['high'], 5)))
+            elif def_['type'] == 'categorical':
+                values.append(def_['choices'])
+
+        combs = list(itertools.product(*values))
+
+        trials = []
+        for comb in combs:
+            distributions_ = {}
+            for name in names:
+                def_ = trial_params_dict[name]
+                type_ = def_['type']
+                if type_ == 'int':
+                    distributions_[name] = IntDistribution(low=def_['low'], high=def_['high'])
+                elif type_ == 'categorical':
+                    distributions_[name] = CategoricalDistribution(choices=def_['choices'])
+                elif type_ == 'float':
+                    distributions_[name] = FloatDistribution(low=def_['low'], high=def_['high'], log=def_.get('log', False))
+
+            trial = dict(params=dict(zip(names, comb)), distributions=distributions_)
+            trials.append(trial)
+
+        return trials
 
     def flexibility(self) -> float:
         """ Flexibility of the model. We can penalize flexibility to reduce overffiting. """

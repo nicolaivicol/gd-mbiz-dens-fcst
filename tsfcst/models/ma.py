@@ -54,6 +54,11 @@ class MovingAverageModel(TsModel):
         return MovingAverageModel.trial_params()
 
     @staticmethod
+    def trial_params_grid(trend=True, seasonal=True, multiplicative=True, level=True, damp=False):
+        trial_params_ = MovingAverageModel.trial_params(trend, seasonal, multiplicative, level, damp)
+        return TsModel.trial_params_grid(trial_params_)
+
+    @staticmethod
     def names_params():
         return [p['name'] for p in MovingAverageModel.trial_params_full()]
 

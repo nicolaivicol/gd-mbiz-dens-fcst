@@ -147,6 +147,11 @@ class HoltWintersSmModel(TsModel):
     def names_params():
         return [p['name'] for p in HoltWintersSmModel.trial_params_full()]
 
+    @staticmethod
+    def trial_params_grid(trend=True, seasonal=True, multiplicative=True, level=True, damp=False):
+        trial_params_ = HoltWintersSmModel.trial_params(trend, seasonal, multiplicative, level, damp)
+        return TsModel.trial_params_grid(trial_params_)
+
     def flexibility(self):
         flexibility = 0
         flexibility += self.model_fit.params['smoothing_level'] ** 2

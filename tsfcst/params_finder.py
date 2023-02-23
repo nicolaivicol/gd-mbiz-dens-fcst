@@ -6,6 +6,7 @@ import logging
 from tabulate import tabulate
 import optuna
 from typing import List, Dict, Tuple
+import random
 
 import config
 from tsfcst.time_series import TsData
@@ -45,6 +46,9 @@ class ParamsFinder:
     periods_out = 0
     periods_val_last = None
 
+    # cache during find_best() to avoid repeated calculations
+    _cache = {}
+
     @staticmethod
     def objective(trial: optuna.Trial):
         """
@@ -61,23 +65,66 @@ class ParamsFinder:
             damp=ParamsFinder.damp,
         )
         params_trial_model = ParamsFinder.get_trial_params(trial, params_trial_model_defined)
+        hash_cache = json.dumps({**params_trial_forecaster, **params_trial_model}, sort_keys=True)
+        out = ParamsFinder._cache.get(hash_cache, None)
+        if out is not None:
+            return out
+        out = ParamsFinder.smape_cv_opt_penalized(params_trial_forecaster, params_trial_model)
+        ParamsFinder._cache[hash_cache] = out
+        return out
+
+    @staticmethod
+    def smape_cv_opt_penalized(params_forecaster: Dict, params_model: Dict):
         fcster = Forecaster(
             model_cls=ParamsFinder.model_cls,
             data=ParamsFinder.data,
-            params_model=params_trial_model,
-            **params_trial_forecaster,
+            params_model=params_model,
+            **params_forecaster,
         )
-        df_fcsts_cv, metrics_cv = fcster.cv(
-            n_train_dates=ParamsFinder.n_train_dates,
-            step_train_dates=ParamsFinder.step_train_dates,
-            periods_val=ParamsFinder.periods_val,
-            periods_test=ParamsFinder.periods_test,
-            periods_out=ParamsFinder.periods_out,
-            periods_val_last=ParamsFinder.periods_val_last
-        )
-        smape_cv_opt_ = smape_cv_opt(**metrics_cv)
-        model_flexibility_ = fcster.model.flexibility()
+        try:
+            df_fcsts_cv, metrics_cv = fcster.cv(
+                n_train_dates=ParamsFinder.n_train_dates,
+                step_train_dates=ParamsFinder.step_train_dates,
+                periods_val=ParamsFinder.periods_val,
+                periods_test=ParamsFinder.periods_test,
+                periods_out=ParamsFinder.periods_out,
+                periods_val_last=ParamsFinder.periods_val_last
+            )
+            smape_cv_opt_ = smape_cv_opt(**metrics_cv)
+            model_flexibility_ = fcster.model.flexibility()
+        except:
+            smape_cv_opt_ = 99999
+            model_flexibility_ = 0
+
         return smape_cv_opt_ + ParamsFinder.reg_coef * model_flexibility_
+
+    @staticmethod
+    def trial_params_grid(n_random_trials: int = None):
+        model_params_grid = ParamsFinder.model_cls.trial_params_grid(ParamsFinder.model_cls.trial_params())
+        forecaster_params_grid = Forecaster.trial_params_grid(Forecaster.trial_params())
+
+        if n_random_trials is None:
+            n_random_trials = len(forecaster_params_grid)*len(model_params_grid)
+
+        n_random_trials_max = len(forecaster_params_grid) * len(model_params_grid)
+        n_random_trials = min(n_random_trials, n_random_trials_max)
+        idx_to_run = sorted(random.sample(range(n_random_trials_max), n_random_trials))
+
+        trials = []
+        i = -1
+        for forecaster_params in forecaster_params_grid:
+            for model_params in model_params_grid:
+                i += 1
+                if i not in idx_to_run:
+                    continue
+                trial = optuna.trial.create_trial(
+                    params={**forecaster_params['params'], **model_params['params']},
+                    distributions={**forecaster_params['distributions'], **model_params['distributions']},
+                    value=ParamsFinder.smape_cv_opt_penalized(forecaster_params['params'], model_params['params']),
+                )
+                trials.append(trial)
+
+        return trials
 
     @staticmethod
     def get_file_names_cache(id_cache):
@@ -92,8 +139,13 @@ class ParamsFinder:
         return os.path.exists(file_df_trials) and os.path.exists(file_best_params) and os.path.exists(file_param_importances)
 
     @staticmethod
-    def find_best(n_trials=100, id_cache='tmp', use_cache=False, parimp=True) -> Tuple[pd.DataFrame, Dict, pd.DataFrame]:
+    def find_best(n_trials=100, id_cache='tmp', use_cache=False, parimp=True, n_trials_grid=0
+                  ) -> Tuple[pd.DataFrame, Dict, pd.DataFrame]:
         """ run many trials with various combinations of parameters to search for best parameters using optuna """
+
+        assert (n_trials + n_trials_grid) > 0
+
+        ParamsFinder._cache = {}
 
         file_df_trials, file_best_params, file_param_importances = ParamsFinder.get_file_names_cache(id_cache)
 
@@ -112,7 +164,10 @@ class ParamsFinder:
         model_cls_name = ParamsFinder.model_cls.__name__
 
         study = optuna.create_study(study_name=f'{model_cls_name}', direction='minimize')
-        study.optimize(ParamsFinder.objective, n_trials=n_trials)
+        if n_trials_grid > 0:
+            study.add_trials(ParamsFinder.trial_params_grid(n_trials_grid))
+        if n_trials > 0:
+            study.optimize(ParamsFinder.objective, n_trials=n_trials)
 
         metric_names = ['smape_cv_opt']
         df_trials = pd.DataFrame([dict(zip(metric_names, trial.values), **trial.params) for trial in study.trials])

@@ -128,6 +128,10 @@ class Forecaster:
         return Forecaster.trial_params()
 
     @staticmethod
+    def trial_params_grid(trial_params):
+        return TsModel.trial_params_grid(trial_params)
+
+    @staticmethod
     def names_params() -> List[str]:
         return [p['name'] for p in Forecaster.trial_params_full()]
 
