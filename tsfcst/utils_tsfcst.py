@@ -415,6 +415,7 @@ def get_feats(x, min_val=-9999, max_val=9999):
         'hurst_10': get_hurst(x, 10),
     }
     feats = trunc_num_values_in_dict_to_min_max(feats, min_val, max_val)
+    feats['avg'] = avg(x)  # do not truncate
     return feats
 
 
