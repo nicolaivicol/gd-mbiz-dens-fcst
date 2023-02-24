@@ -20,6 +20,7 @@ dir_fcsts = f'{config.DIR_ARTIFACTS}/forecast_ensemble'
 fcsts_to_compare = {
     'ens_test_w_cv_weights': 'microbusiness_density-test-20220701',
     'ens_test_w_test_weights': 'microbusiness_density-test_w_ideal_weights-20220701',
+    'best-model-test': 'active-w-test-find_best_corner-20220701',
     'w-lgbm-model_all': 'active-weights_by_model-20220701',
     'w-lgbm-model_naive_ma_theta': 'active-weights_by_model_naive_ma_theta-20220701',
     'w-lgbm-model_naive_theta': 'active-weights_by_model_naive_theta-20220701',
