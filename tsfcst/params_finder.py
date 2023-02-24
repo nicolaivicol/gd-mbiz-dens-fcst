@@ -270,7 +270,7 @@ class ParamsFinder:
 
         names_ = ['smape_cv_opt'] + [col for col in df.columns if col != 'smape_cv_opt']
         dimensions_ = []
-        pardefs = ParamsFinder.trial_params_definitions()
+        pardefs = ParamsFinder.trial_params_definitions(ParamsFinder.model_cls)
 
         for name_ in names_:
             pardef = pardefs.get(name_)
@@ -364,10 +364,13 @@ class ParamsFinder:
 
 
     @staticmethod
-    def trial_params_definitions() -> Dict:
+    def trial_params_definitions(model_cls=None) -> Dict:
 
         pardefs = Forecaster.trial_params()
-        for model_cls in MODELS.values():
+        if model_cls is None:
+            for model_cls in MODELS.values():
+                pardefs.extend(model_cls.trial_params_full())
+        else:
             pardefs.extend(model_cls.trial_params_full())
 
         pardefs_dict = {}

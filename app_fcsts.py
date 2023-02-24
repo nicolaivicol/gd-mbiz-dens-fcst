@@ -48,7 +48,7 @@ if st.sidebar.button('Select random series'):
     hs.append(cfips)
     # hs.append(cfips)
 
-target_name = st.sidebar.selectbox('Select target to forecast:', ['microbusiness_density', 'active'])
+target_name = st.sidebar.selectbox('Select target to forecast:', ['active', 'microbusiness_density'])
 model_alias = st.sidebar.selectbox('Select model:', list(MODELS.keys()), index=list(MODELS.keys()).index('theta'))
 
 with st.sidebar.expander('CV settings:'):
