@@ -23,8 +23,8 @@ log = logging.getLogger(os.path.basename(__file__))
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--target_name', default='active', help='microbusiness_density, active')
-    parser.add_argument('-g', '--tag', default='weights_by_model_naive_ma-010_theta-010', help='options: test, full')
-    parser.add_argument('-a', '--asofdate', default='2022-07-01')
+    parser.add_argument('-g', '--tag', default='naive', help='options: test, full')
+    parser.add_argument('-a', '--asofdate', default='2022-10-01')
     parser.add_argument('-n', '--periodsahead', default=8, type=int, help='3 for test, 8 for full')
     parser.add_argument('-s', '--selected_trials', default='best', help='options: best, top10')
     # best params:
@@ -34,7 +34,7 @@ def parse_args():
     parser.add_argument('-w', '--hw', default='microbusiness_density-20220701-hw-test-trend_level_damp-100-0_0')
     # best weights:
     parser.add_argument('-v', '--weights',
-                        default='lgbm-norm-naive-ma-010-theta-010-folds_5-active-20220701-microbusiness_density-test-find_best_corner-20221001')
+                        default='naive')
     # (estimated) population to divide to when target_name=active
     parser.add_argument('-p', '--population', default='est_pop_25_35_40')
 
@@ -81,11 +81,30 @@ if __name__ == '__main__':
         df_best_params = df_best_params.filter(pl.col('selected_trials') == selected_trials)
         dict_df_best_params[name] = df_best_params
 
-    log.debug('loading weights')
+    log.debug('try loading data frame with weights per cfips')
     try:
         df_best_weights = load_best_weights(weights_name)
     except ValueError as e:
-        df_best_weights = load_predicted_weights(weights_name)
+        try:
+            df_best_weights = load_predicted_weights(weights_name)
+        except Exception as e:
+            df_best_weights = None
+
+    # simple weights to apply to
+    map_best_weights = {
+        'naive': {'naive': 1, 'ma': 0, 'theta': 0, 'hw': 0},
+        'theta': {'naive': 0, 'ma': 0, 'theta': 1, 'hw': 0},
+        'average': {'naive': 0.25, 'ma': 0.25, 'theta': 0.25, 'hw': 0.25},
+    }
+    best_weights = map_best_weights.get(weights_name, None)
+
+    assert df_best_weights is not None or best_weights is not None
+
+    if target_name == 'active':
+        log.debug('try loading population data to use for density calculation from active')
+        df_pop = pl.read_csv(f'{config.DIR_DATA}/{population}.csv', parse_dates=True) \
+            .rename({'first_day_of_month': 'date'}) \
+            .with_columns(pl.col('cfips').cast(pl.Int32))
 
     log.debug('generate forecast for each cfips')
     list_fcsts = []
@@ -102,10 +121,8 @@ if __name__ == '__main__':
             best_cfgs[name] = cfg
 
         # load best weights
-        best_weights = df_best_weights.filter(pl.col('cfips') == cfips).select(model_names).to_dicts()[0]
-        # best_weights = {'naive': 1, 'ma': 0, 'theta': 0, 'hw': 0}
-        # best_weights = {'naive': 0.30, 'ma': 0.20, 'theta': 0.30, 'hw': 0.20}
-        # best_weights = {'naive': 0, 'ma': 0, 'theta': 1.00, 'hw': 0}
+        if df_best_weights is not None:
+            best_weights = df_best_weights.filter(pl.col('cfips') == cfips).select(model_names).to_dicts()[0]
 
         ens = Ensemble(data=ts, fcster_configs=best_cfgs, weights=best_weights)
         fcst = ens.forecast(periodsahead)
@@ -115,9 +132,6 @@ if __name__ == '__main__':
     df_fcsts = pl.concat(list_fcsts)
 
     if target_name == 'active':
-        df_pop = pl.read_csv(f'{config.DIR_DATA}/{population}.csv', parse_dates=True) \
-            .rename({'first_day_of_month': 'date'}) \
-            .with_columns(pl.col('cfips').cast(pl.Int32))
         df_fcsts = df_fcsts.join(df_pop, on=['cfips', 'date'], how='left')
         for name in (model_names + ['ensemble']):
             df_fcsts = df_fcsts.with_columns((pl.col(name) / pl.col('population') * 100).alias(name))
@@ -134,6 +148,6 @@ if __name__ == '__main__':
     assert all(df_submission['microbusiness_density'].is_not_nan())
     assert all(df_submission['microbusiness_density'] >= 0)
 
-    file_submission = f"{dir_out}/{get_submit_file_name('submission-ens', tag=config.VERSION)}.csv"
+    file_submission = f"{dir_out}/{get_submit_file_name(f'submission-ens-{id_run}', tag=config.VERSION)}.csv"
     df_submission.write_csv(file_submission, float_precision=4)
     log.info(f'submission saved to {file_submission}')
