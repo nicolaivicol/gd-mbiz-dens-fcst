@@ -57,14 +57,14 @@ class ParamsFinder:
         Score to minimize is `smape_cv_opt` - SMAPE adjusted with penalties
         """
         params_trial_forecaster = ParamsFinder.get_trial_params(trial, Forecaster.trial_params())
-        params_trial_model_defined = ParamsFinder.model_cls.trial_params(
+        params_trial_model_narrowed = ParamsFinder.model_cls.trial_params(
             trend=ParamsFinder.trend,
             seasonal=ParamsFinder.seasonal,
             multiplicative=ParamsFinder.multiplicative,
             level=ParamsFinder.level,
             damp=ParamsFinder.damp,
         )
-        params_trial_model = ParamsFinder.get_trial_params(trial, params_trial_model_defined)
+        params_trial_model = ParamsFinder.get_trial_params(trial, params_trial_model_narrowed)
         hash_cache = json.dumps({**params_trial_forecaster, **params_trial_model}, sort_keys=True)
         out = ParamsFinder._cache.get(hash_cache, None)
         if out is not None:
@@ -99,16 +99,16 @@ class ParamsFinder:
         return smape_cv_opt_ + ParamsFinder.reg_coef * model_flexibility_
 
     @staticmethod
-    def trial_params_grid(n_random_trials: int = None):
+    def trial_params_grid(n_trials_grid: int = None):
         model_params_grid = ParamsFinder.model_cls.trial_params_grid(ParamsFinder.model_cls.trial_params())
         forecaster_params_grid = Forecaster.trial_params_grid(Forecaster.trial_params())
 
-        if n_random_trials is None:
-            n_random_trials = len(forecaster_params_grid)*len(model_params_grid)
+        if n_trials_grid is None:
+            n_trials_grid = len(forecaster_params_grid) * len(model_params_grid)
 
         n_random_trials_max = len(forecaster_params_grid) * len(model_params_grid)
-        n_random_trials = min(n_random_trials, n_random_trials_max)
-        idx_to_run = sorted(random.sample(range(n_random_trials_max), n_random_trials))
+        n_trials_grid = min(n_trials_grid, n_random_trials_max)
+        idx_to_run = sorted(random.sample(range(n_random_trials_max), n_trials_grid))
 
         trials = []
         i = -1
