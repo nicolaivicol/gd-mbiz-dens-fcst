@@ -81,7 +81,7 @@ def feature_importance_lgbm(
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-t', '--tag', default='lgbm-norm-naive-ma-010-theta-010')
+    parser.add_argument('-t', '--tag', default='lgbm-norm-naive-ma_x050-theta_x050')
     parser.add_argument('-f', '--feats', default='active-20220701', help='time series features as of before test')
     parser.add_argument('-w', '--weights_cv', default='microbusiness_density-cv-20220701', help='best weights on cv')
     parser.add_argument('-v', '--weights_test', default='microbusiness_density-test-find_best_corner-20221001',
@@ -204,10 +204,12 @@ if __name__ == '__main__':
         df_predicted_weights = df_predicted_weights.with_columns(pl.col(m).clip_min(0))
 
     # manually adjust predictions
-    df_predicted_weights = df_predicted_weights.with_columns(pl.lit(0).alias('hw'))
-    # df_predicted_weights = df_predicted_weights.with_columns(pl.lit(0).alias('ma'))
-    df_predicted_weights = df_predicted_weights.with_columns((pl.col('ma') - 0.10).clip_min(0).alias('ma'))
-    df_predicted_weights = df_predicted_weights.with_columns((pl.col('theta') - 0.10).clip_min(0).alias('theta'))
+    # df_predicted_weights = df_predicted_weights \
+    #     .with_columns([
+    #         (pl.col('ma') * 0.5).alias('ma'),
+    #         (pl.col('theta') * 0.5).alias('theta'),
+    #         (pl.col('hw') * 0.0).alias('hw'),
+    #     ])
 
     # normalize weights (sum=1)
     df_predicted_weights = df_predicted_weights.with_columns(pl.sum(model_names).alias('sum'))
@@ -220,8 +222,6 @@ if __name__ == '__main__':
     df_predicted_weights.write_csv(f'{dir_out}/predicted_weights.csv', float_precision=4)
 
     log.debug(f'weights saved to: {dir_out}/predicted_weights.csv')
-
-    print(describe_numeric(df_predicted_weights.to_pandas()))
 
     print(df_feat_imps
           .groupby(['target_name', 'feature'])
@@ -240,7 +240,7 @@ if __name__ == '__main__':
         .sort('target_name')
     print(agg)
 
-
+    print(describe_numeric(df_predicted_weights.to_pandas()))
 
 
 

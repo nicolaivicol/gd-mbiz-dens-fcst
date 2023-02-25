@@ -24,7 +24,7 @@ st.set_page_config(layout="wide", page_title='Check Forecasts')
 def get_data(id_fcsts, id_weights):
     log.debug('Loading local data files')
     log.debug('loading actual')
-    df_actual, _, _ = load_data()
+    df_actual, _, _, df_pop = load_data()
     df_actual = df_actual.rename({'first_day_of_month': 'date'})
 
     log.debug('loading forecasts')

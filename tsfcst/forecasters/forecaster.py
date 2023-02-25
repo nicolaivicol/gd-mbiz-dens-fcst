@@ -43,6 +43,14 @@ class ForecasterConfig:
         best_params = best_params.to_dicts()[0]
         return cls.from_best_params(best_params)
 
+    def __str__(self):
+        params_model_str = ', '.join([f'{k}={str(v)}' for k, v in self.params_model.items()])
+        params_forecaster_str = ', '.join([f'{k}={str(v)}' for k, v in self.params_forecaster.items()])
+        return f'{self.model_cls.__name__}({params_model_str}) | Forecaster: {params_forecaster_str}'
+
+    def __repr__(self):
+        return self.__str__()
+
 
 class Forecaster:
 
