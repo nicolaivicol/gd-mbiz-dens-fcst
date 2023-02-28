@@ -8,9 +8,11 @@ import glob
 
 import config
 from etl import load_data, get_df_ts_by_cfips
+from tsfcst.find_best_weights import load_best_weights
 from tsfcst.params_finder import ParamsFinder
 from tsfcst.models.inventory import MODELS
 from tsfcst.forecasters.forecaster import Forecaster
+from tsfcst.predict_best_weights_with_model import load_predicted_weights
 from tsfcst.time_series import TsData
 from tsfcst.utils_tsfcst import plot_fcsts_and_actual
 
@@ -33,9 +35,14 @@ def get_data(id_fcsts, id_weights):
         .with_columns(pl.col('cfips').cast(pl.Int32))
 
     log.debug('loading best weights')
-    dir_best_weights = f'{config.DIR_ARTIFACTS}/find_best_weights/{id_weights}'
-    files_best_weights = glob.glob(f'{dir_best_weights}/*.csv')
-    df_weights = pl.concat([pl.read_csv(f) for f in files_best_weights])
+    log.debug('try loading data frame with weights per cfips')
+    try:
+        df_weights = load_best_weights(id_weights)
+    except ValueError as e:
+        try:
+            df_weights = load_predicted_weights(id_weights)
+        except Exception as e:
+            df_weights = None
 
     return df_actual, df_fcsts, df_weights
 
@@ -48,8 +55,8 @@ def history_selections():
 st.sidebar.title("Control Panel")
 
 with st.sidebar.expander('data sources:'):
-    id_fcsts = st.text_input(label='id_fcsts:', value='microbusiness_density-test-20220701')
-    id_weights = st.text_input(label='id_weights:', value='microbusiness_density-cv-20220701')
+    id_fcsts = st.text_input(label='id_fcsts:', value='active-naive-naive-20221201')
+    id_weights = st.text_input(label='id_weights:', value='lgbm-bin-naive-ma-h025-theta-h025-folds_5-active-20220701-active-naive_ema_theta-find_best_corner-20221201')
 
 df_actual, df_fcsts, df_weights = get_data(id_fcsts, id_weights)
 hs = history_selections()
@@ -74,16 +81,21 @@ if st.sidebar.button('Select next / random'):
 
 st.sidebar.text(f'selected cfips: {cfips}')
 
-target_name = st.sidebar.selectbox('Select target to forecast:', ['microbusiness_density', 'active'])
+target_name = st.sidebar.selectbox('Select target to forecast:', ['active', 'microbusiness_density'])
 
 tab1, tab2 = st.tabs(['Plot forecasts', 'Details'])
 
 df_actual_cfips = df_actual.filter(pl.col('cfips') == cfips).rename({target_name: 'actual'}).select(['date', 'actual'])
 df_fcsts_cfips = df_fcsts.filter(pl.col('cfips') == cfips).drop('cfips')
 
+models = [m for m in ['ma', 'naive', 'theta', 'hw', 'ensemble'] if m in df_fcsts_cfips.columns]
+if target_name == 'active':
+    for m in models:
+        df_fcsts_cfips = df_fcsts_cfips.with_columns((pl.col(m)/100 * pl.col('population')).alias(m))
+
 fig_fcsts = plot_fcsts_and_actual(
     df_actual=df_actual_cfips.to_pandas(),
-    df_fcsts=df_fcsts_cfips.to_pandas(),
+    df_fcsts=df_fcsts_cfips.select(['date'] + models).to_pandas(),
     target_name='actual',
     colors={'naive': 'orange', 'ma': 'brown', 'theta': 'blue', 'hw': 'darkblue', 'ensemble': 'red'}
 )
@@ -97,6 +109,6 @@ with tab2:
     st.table(df_weights_cfips.to_pandas())
 
 
-# streamlit run app_check_fcsts.py --server.port 8003
+# streamlit run app_check_fcsts.py --server.port 8002
 
 # weights for 30031?

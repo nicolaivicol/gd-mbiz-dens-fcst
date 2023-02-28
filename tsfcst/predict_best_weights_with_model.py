@@ -9,7 +9,7 @@ import polars as pl
 import pandas as pd
 import lightgbm
 from typing import List, Dict, Union
-from sklearn.metrics import r2_score, mean_absolute_error
+from sklearn.metrics import r2_score, mean_absolute_error, roc_auc_score
 
 import config
 from tsfcst.find_best_weights import load_best_weights
@@ -22,11 +22,11 @@ log = logging.getLogger(os.path.basename(__file__))
 
 # LightGBM
 PARAMS_LGBM = {
-    'objective': 'regression',  # 'cross_entropy',
+    'objective': 'binary', # 'regression',  # 'cross_entropy',
     'boosting_type': 'gbdt',
     # 'metric': 'auc',
     'n_estimators': 600,
-    'learning_rate': 0.005,
+    'learning_rate': 0.01,
     'max_depth': 3,  # 4,
     'num_leaves': 8,  # 15,
     'colsample_bytree': 0.25,  # aka feature_fraction
@@ -44,9 +44,9 @@ PARAMS_LGBM_FIT = {
 
 PARAMS_LGBM_BY_TARGET = {
     'naive': {**PARAMS_LGBM, **{'n_estimators': 400}},
-    'ma': {**PARAMS_LGBM, **{'n_estimators': 600}},
+    'ma': {**PARAMS_LGBM, **{'n_estimators': 400}},
     'theta': {**PARAMS_LGBM, **{'n_estimators': 400}},
-    'hw': {**PARAMS_LGBM, **{'n_estimators': 600}},
+    'hw': {**PARAMS_LGBM, **{'n_estimators': 500}},
 }
 
 
@@ -54,13 +54,13 @@ def load_predicted_weights(weights_id, model_names = None):
     dir_pred_weights = f'{config.DIR_ARTIFACTS}/predict_best_weights_with_model/{weights_id}'
     df_weights = pl.read_csv(f'{dir_pred_weights}/predicted_weights.csv')
 
-    # reweight to have sum of weights = 1:
-    if model_names is None:
-        model_names = ['naive', 'ma', 'theta', 'hw']
-    df_weights = df_weights.with_columns(pl.sum(model_names).alias('sum_weights'))
-    for model_name in model_names:
-        df_weights = df_weights.with_columns(pl.col(model_name) / pl.col('sum_weights'))
-    df_weights = df_weights.drop('sum_weights')
+    # # reweight to have sum of weights = 1:
+    # if model_names is None:
+    #     model_names = ['naive', 'ma', 'theta', 'hw']
+    # df_weights = df_weights.with_columns(pl.sum(model_names).alias('sum_weights'))
+    # for model_name in model_names:
+    #     df_weights = df_weights.with_columns(pl.col(model_name) / pl.col('sum_weights'))
+    # df_weights = df_weights.drop('sum_weights')
 
     return df_weights
 
@@ -81,23 +81,33 @@ def feature_importance_lgbm(
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-t', '--tag', default='lgbm-norm-naive-ma_x050-theta_x050')
+    parser.add_argument('-t', '--tag', default='lgbm-bin-naive-theta-h040')
     parser.add_argument('-f', '--feats', default='active-20220701', help='time series features as of before test')
-    parser.add_argument('-w', '--weights_cv', default='microbusiness_density-cv-20220701', help='best weights on cv')
-    parser.add_argument('-v', '--weights_test', default='microbusiness_density-test-find_best_corner-20221001',
-                        help='best weights on test (target variable)')
-    parser.add_argument('-n', '--nfolds', default=5, type=int)
+    parser.add_argument('-w', '--weights_cv', help='best weights on cv',
+                        default='active-cv-naive_ema_theta-find_best_corner-20220701')
+    parser.add_argument('-v', '--weights_test', help='best weights on test (target variable)',
+                        default='active-test-naive_ema_theta-find_best_corner-20221201')
+
+    # uncomment for submission
+    parser.add_argument('--feats_full', default='active-20221201')
+    parser.add_argument('--weights_cv_full', default='active-full-naive_ema_theta-find_best_corner-20221201')
+
+    # use folds=1 for submission
+    parser.add_argument('-n', '--nfolds', default=1, type=int)
     args = parser.parse_args()
     return args
 
 
 def load_all_feats(id_feats, id_weights_cv):
     df_feats = load_feats(id_feats)
-    map_weights_cv_names = {m: f'w_cv_{m}' for m in model_names}
-    df_weights_cv = load_best_weights(id_weights_cv) \
-        .select(['cfips'] + model_names) \
-        .rename(map_weights_cv_names)\
-        .sort('cfips')
+
+    df_weights_cv = load_best_weights(id_weights_cv)
+    df_weights_cv = df_weights_cv.with_columns([
+        (pl.col('smape_ma') - pl.col('smape_naive')).alias('diff_smape_ma_naive'),
+        (pl.col('smape_theta') - pl.col('smape_naive')).alias('diff_smape_theta_naive')
+    ])
+    map_weights_cv_names = {c: f'val_{c}' for c in df_weights_cv.columns if c != 'cfips'}
+    df_weights_cv = df_weights_cv.rename(map_weights_cv_names).sort('cfips')
     df_feats = df_feats.join(df_weights_cv, on='cfips')
     return df_feats
 
@@ -107,10 +117,10 @@ if __name__ == '__main__':
 
     log.info(f'Running {os.path.basename(__file__)} with parameters: \n'
              + json.dumps(vars(args), indent=2))
-    log.info('This trains model(s) to predcit the best weights on test.')
+    log.info('This trains model(s) to predict the best weights on test.')
 
     n_folds = args.nfolds
-    model_names = ['naive', 'ma', 'theta', 'hw']
+    model_names = ['naive', 'ma', 'theta']
 
     id_run = f"{args.tag}-folds_{n_folds}-{args.feats}-{args.weights_test}"
     dir_out = f'{config.DIR_ARTIFACTS}/{Path(__file__).stem}/{id_run}'
@@ -120,12 +130,18 @@ if __name__ == '__main__':
     df_feats = load_all_feats(args.feats, args.weights_cv)
     feature_names = [f for f in df_feats.columns if f not in ['cfips']]
 
+    try:
+        df_feats_out = load_all_feats(args.feats_full, args.weights_cv_full)
+    except:
+        df_feats_out = None
+
     # targets
     df_weights_test = load_best_weights(args.weights_test).select(['cfips'] + model_names).sort('cfips')
 
     list_res = []
     list_feat_imps = []
     list_preds = []
+    list_preds_out = []
     list_models = {}
 
     for model_name in model_names:
@@ -153,7 +169,10 @@ if __name__ == '__main__':
             eval_set = [(X_valid, y_valid), (X_train, y_train)]
 
             params_lgbm_ = PARAMS_LGBM_BY_TARGET.get(model_name, PARAMS_LGBM)
-            lgbm = lightgbm.LGBMRegressor(**params_lgbm_)
+            if params_lgbm_['objective'] == 'binary':
+                lgbm = lightgbm.LGBMClassifier(**params_lgbm_)
+            else:
+                lgbm = lightgbm.LGBMRegressor(**params_lgbm_)
             lgbm.fit(
                 X=X_train,
                 y=y_train,
@@ -163,8 +182,12 @@ if __name__ == '__main__':
                 **PARAMS_LGBM_FIT,
             )
 
-            pred_y_train = lgbm.predict(X_train)
-            pred_y_valid = lgbm.predict(X_valid)
+            if params_lgbm_['objective'] == 'binary':
+                pred_y_train = lgbm.predict_proba(X_train)[:, 1]
+                pred_y_valid = lgbm.predict_proba(X_valid)[:, 1]
+            else:
+                pred_y_train = lgbm.predict(X_train)
+                pred_y_valid = lgbm.predict(X_valid)
 
             res = {
                 'target_name': model_name,
@@ -175,6 +198,8 @@ if __name__ == '__main__':
                 'r_sq_valid': r2_score(y_valid, pred_y_valid),
                 'mae_train': mean_absolute_error(y_train, pred_y_train),
                 'mae_valid': mean_absolute_error(y_valid, pred_y_valid),
+                'auc_train': roc_auc_score(y_train, pred_y_train),
+                'auc_valid': roc_auc_score(y_valid, pred_y_valid),
             }
             res = {**res, **params_lgbm_, **PARAMS_LGBM_FIT}
 
@@ -190,6 +215,15 @@ if __name__ == '__main__':
             list_preds_folds.append(df_pred)
 
         df_pred_model = pl.concat(list_preds_folds, how='vertical')
+
+        if df_feats_out is not None:
+            X_out = df_feats_out.select(feature_names).to_numpy()
+            if params_lgbm_['objective'] == 'binary':
+                pred_y_out = lgbm.predict_proba(X_out)[:, 1]
+            else:
+                pred_y_out = lgbm.predict(X_out)
+            df_pred_model = pl.DataFrame({'cfips': df_feats_out['cfips'], model_name: pred_y_out})
+
         list_preds.append(df_pred_model)
 
     df_results = pl.from_records(list_res)
@@ -204,12 +238,12 @@ if __name__ == '__main__':
         df_predicted_weights = df_predicted_weights.with_columns(pl.col(m).clip_min(0))
 
     # manually adjust predictions
-    # df_predicted_weights = df_predicted_weights \
-    #     .with_columns([
-    #         (pl.col('ma') * 0.5).alias('ma'),
-    #         (pl.col('theta') * 0.5).alias('theta'),
-    #         (pl.col('hw') * 0.0).alias('hw'),
-    #     ])
+    df_predicted_weights = df_predicted_weights \
+        .with_columns([
+        (pl.col('naive') * (pl.col('naive') > 0)).alias('naive'),
+        (pl.col('ma') * (pl.col('ma') > 0.40)).alias('ma'),
+        (pl.col('theta') * (pl.col('theta') > 0.40)).alias('theta'),
+    ])
 
     # normalize weights (sum=1)
     df_predicted_weights = df_predicted_weights.with_columns(pl.sum(model_names).alias('sum'))
@@ -223,14 +257,18 @@ if __name__ == '__main__':
 
     log.debug(f'weights saved to: {dir_out}/predicted_weights.csv')
 
-    print(df_feat_imps
-          .groupby(['target_name', 'feature'])
-          .agg(pl.col('importance').mean())
-          .sort('importance', reverse=True))
+    for m in model_names:
+        print(df_feat_imps
+              .filter(pl.col('target_name') == m)
+              .groupby(['target_name', 'feature'])
+              .agg(pl.col('importance').mean())
+              .sort('importance', reverse=True)
+              .to_pandas())
 
     agg = df_results.groupby('target_name')\
         .agg([pl.col('r_sq_valid').mean(),
               pl.col('mae_valid').mean(),
+              pl.col('auc_valid').mean(),
               pl.col('best_iteration').mean(),
               pl.col('n_estimators').mean(),
               pl.col('learning_rate').mean(),
@@ -240,7 +278,9 @@ if __name__ == '__main__':
         .sort('target_name')
     print(agg)
 
-    print(describe_numeric(df_predicted_weights.to_pandas()))
+    print(df_predicted_weights.mean())
+
+    print(df_predicted_weights.head(10).to_pandas())
 
 
 
@@ -251,8 +291,16 @@ if __name__ == '__main__':
 # │ ---       ┆ ---      ┆ f64       ┆ ---        ┆ ---        ┆ ---        ┆ f64       ┆ f64        │
 # │ str       ┆ f64      ┆           ┆ f64        ┆ f64        ┆ f64        ┆           ┆            │
 # ╞═══════════╪══════════╪═══════════╪════════════╪════════════╪════════════╪═══════════╪════════════╡
-# │ hw        ┆ 0.009489 ┆ 0.290387  ┆ 501.4      ┆ 600.0      ┆ 0.005      ┆ 3.0       ┆ 8.0        │
-# │ ma        ┆ 0.032412 ┆ 0.174735  ┆ 548.4      ┆ 600.0      ┆ 0.005      ┆ 3.0       ┆ 8.0        │
-# │ naive     ┆ 0.009106 ┆ 0.486296  ┆ 336.0      ┆ 400.0      ┆ 0.005      ┆ 3.0       ┆ 8.0        │
-# │ theta     ┆ 0.013011 ┆ 0.406111  ┆ 343.4      ┆ 400.0      ┆ 0.005      ┆ 3.0       ┆ 8.0        │
+# │ ma        ┆ 0.225224 ┆ 0.15436   ┆ 388.6      ┆ 600.0      ┆ 0.01       ┆ 3.0       ┆ 8.0        │
+# │ naive     ┆ 0.105075 ┆ 0.431547  ┆ 367.6      ┆ 400.0      ┆ 0.01       ┆ 3.0       ┆ 8.0        │
+# │ theta     ┆ 0.115362 ┆ 0.362063  ┆ 333.8      ┆ 400.0      ┆ 0.01       ┆ 3.0       ┆ 8.0        │
 # └───────────┴──────────┴───────────┴────────────┴────────────┴────────────┴───────────┴────────────┘
+
+# distribution
+# ┌─────────────┬──────────┬──────────┬──────────┐
+# │ cfips       ┆ naive    ┆ ma       ┆ theta    │
+# │ ---         ┆ ---      ┆ ---      ┆ ---      │
+# │ f64         ┆ f64      ┆ f64      ┆ f64      │
+# ╞═════════════╪══════════╪══════════╪══════════╡
+# │ 30376.03764 ┆ 0.610965 ┆ 0.106377 ┆ 0.282658 │
+# └─────────────┴──────────┴──────────┴──────────┘

@@ -41,17 +41,26 @@ DIR_CACHE_TUNE_HYPER_PARAMS_W_OPTUNA = f'{DIR_ARTIFACTS}/cache/paramsfinder-find
 CV_ARGS_DICT = {
     'test': {
         'n_train_dates': 3,
-        'step_train_dates': 2,
-        'periods_val': 7,
+        'step_train_dates': 3,
+        'periods_val': 5,
         'periods_test': 0,
         'periods_out': 0,
-        'periods_val_last': 5,
+        'periods_val_last': 3,
         'offset_last_date': 0
     },
+    # 'cv_test': {
+    #     'n_train_dates': 3,
+    #     'step_train_dates': 3,
+    #     'periods_val': 5,
+    #     'periods_test': 5,
+    #     'periods_out': 0,
+    #     'periods_val_last': 3,
+    #     'offset_last_date': 0
+    # },
     'full': {
         'n_train_dates': 3,
         'step_train_dates': 3,
-        'periods_val': 7,
+        'periods_val': 5,
         'periods_test': 0,
         'periods_out': 0,
         'periods_val_last': 5,
@@ -66,5 +75,12 @@ SEARCH_ARGS_DICT = {
         'multiplicative': False,
         'level': True,
         'damp': True
+    },
+    'level': {
+        'trend': False,
+        'seasonal': False,
+        'multiplicative': False,
+        'level': True,
+        'damp': False
     }
 }

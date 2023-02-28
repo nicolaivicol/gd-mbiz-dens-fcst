@@ -20,7 +20,7 @@ st.set_page_config(layout="wide", page_title='Forecasting microbusiness density'
 @st.cache(allow_output_mutation=True)
 def get_data():
     log.debug('Loading local data files')
-    df_train, df_test, df_census = load_data()
+    df_train, df_test, df_census, df_pop = load_data()
     return df_train
 
 
@@ -56,18 +56,18 @@ with st.sidebar.expander('CV settings:'):
         label="Number of past forecasts:", value=3, min_value=1, max_value=10, step=1,
         help="How many forecasts to generate in the past for validation.",)
     periods_val = st.slider(
-        label="Forecast horizon (months):", value=7, min_value=1, max_value=10, step=1,
+        label="Forecast horizon (months):", value=5, min_value=1, max_value=10, step=1,
         help="How many months ahead to forecast.",)
     step_train_dates = st.slider(
         label="Step btw forecasts (months):", value=2, min_value=1, max_value=6, step=1,
         help="How many months between the forecasts.")
     periods_test = st.slider(
-        label="Periods in test (months):", value=3, min_value=0, max_value=7, step=1,
+        label="Periods in test (months):", value=5, min_value=0, max_value=7, step=1,
         help="How many months to use in the test fold.")
     periods_val_last = st.slider(
         label="Periods in last val fold:", value=5, min_value=1, max_value=10, step=1,
         help="How many months in the last validation fold.")
-    periods_out = 7
+    periods_out = 5
 
 df_ts = get_df_ts_by_cfips(cfips=cfips, target_name=target_name, _df=df)
 ts = TsData(df_ts['first_day_of_month'], df_ts[target_name])

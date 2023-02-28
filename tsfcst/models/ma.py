@@ -67,3 +67,67 @@ class MovingAverageModel(TsModel):
         avg_factor = {'simple': 1, 'weighted': 1.5, 'exponential': 2}[self.params['average']]
         flexibility += avg_factor * 1 / np.log1p(self.params['window'] / self.data.periods_year)
         return flexibility
+
+
+class ExponentialMovingAverageModel(MovingAverageModel):
+
+    @staticmethod
+    def default_params():
+        return {
+            'average': 'exponential',
+            'window': 12
+        }
+
+    @staticmethod
+    def trial_params(trend=True, seasonal=True, multiplicative=True, level=True, damp=False):
+        # does not depend on any parameters, because it can't handle trend, seasonal, etc.
+        params_trial = [
+            dict(name='average', type='categorical', choices=['exponential']),
+            dict(name='window', type='int', low=1, high=18),
+        ]
+        return params_trial
+
+    @staticmethod
+    def trial_params_full():
+        return ExponentialMovingAverageModel.trial_params()
+
+    @staticmethod
+    def trial_params_grid(trend=True, seasonal=True, multiplicative=True, level=True, damp=False):
+        trial_params_ = ExponentialMovingAverageModel.trial_params(trend, seasonal, multiplicative, level, damp)
+        return TsModel.trial_params_grid(trial_params_)
+
+    @staticmethod
+    def names_params():
+        return [p['name'] for p in ExponentialMovingAverageModel.trial_params_full()]
+
+
+class SimpleMovingAverageModel(MovingAverageModel):
+
+    @staticmethod
+    def default_params():
+        return {
+            'average': 'simple',
+            'window': 12
+        }
+
+    @staticmethod
+    def trial_params(trend=True, seasonal=True, multiplicative=True, level=True, damp=False):
+        # does not depend on any parameters, because it can't handle trend, seasonal, etc.
+        params_trial = [
+            dict(name='average', type='categorical', choices=['simple']),
+            dict(name='window', type='int', low=1, high=18),
+        ]
+        return params_trial
+
+    @staticmethod
+    def trial_params_full():
+        return SimpleMovingAverageModel.trial_params()
+
+    @staticmethod
+    def trial_params_grid(trend=True, seasonal=True, multiplicative=True, level=True, damp=False):
+        trial_params_ = SimpleMovingAverageModel.trial_params(trend, seasonal, multiplicative, level, damp)
+        return TsModel.trial_params_grid(trial_params_)
+
+    @staticmethod
+    def names_params():
+        return [p['name'] for p in SimpleMovingAverageModel.trial_params_full()]

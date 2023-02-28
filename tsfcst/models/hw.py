@@ -114,12 +114,12 @@ class HoltWintersSmModel(TsModel):
         params_trial.append(dict(name='trend', type='categorical', choices=trend_choices))
 
         if trend:
-            params_trial.append(dict(name='smoothing_trend_max', type='float', low=0.0001, high=1.00, log=True))
+            params_trial.append(dict(name='smoothing_trend_max', type='float', low=0.01, high=1.00, step=0.01))
 
-        if damp:
+        if damp and trend:
             params_trial.append(dict(name='damped_trend', type='categorical', choices=[True]))
             # params_trial.append(dict(name='damping_trend_min', type='float', low=0.0, high=0.749))
-            params_trial.append(dict(name='damping_trend_max', type='float', low=0.75, high=1.00))
+            params_trial.append(dict(name='damping_trend_max', type='float', low=0.75, high=1.00, step=0.01))
 
         seasonality_choices = ['no']
         if seasonal:
@@ -129,10 +129,10 @@ class HoltWintersSmModel(TsModel):
         params_trial.append(dict(name='seasonality', type='categorical', choices=seasonality_choices))
 
         if seasonal:
-            params_trial.append(dict(name='smoothing_seasonal_max', type='float', low=0.0001, high=0.33, log=True))
+            params_trial.append(dict(name='smoothing_seasonal_max', type='float', low=0.01, high=0.33, step=0.01))
 
         if level:
-            params_trial.append(dict(name='smoothing_level_max', type='float', low=0.0001, high=1.00, log=True))
+            params_trial.append(dict(name='smoothing_level_max', type='float', low=0.01, high=1.00, step=0.01))
 
         return params_trial
 
@@ -140,7 +140,7 @@ class HoltWintersSmModel(TsModel):
     def trial_params_full():
         params_trial = HoltWintersSmModel.trial_params(damp=False)
         params_trial.append(dict(name='damped_trend', type='categorical', choices=[True, False]))
-        params_trial.append(dict(name='damping_trend_max', type='float', low=0.75, high=1.00))
+        params_trial.append(dict(name='damping_trend_max', type='float', low=0.75, high=1.00, step=0.01))
         return params_trial
 
     @staticmethod
@@ -165,9 +165,9 @@ class HoltWintersSmModel(TsModel):
             flexibility += not_damped_trend
 
             if self.model_fit.model.trend == 'add':
-                flexibility += (1 + not_damped_trend) * self.model_fit.params['smoothing_trend'] ** 2
+                flexibility += 2 * (1 + not_damped_trend) * self.model_fit.params['smoothing_trend'] ** 2
             else:
-                flexibility += (2 + not_damped_trend) * self.model_fit.params['smoothing_trend'] ** 2
+                flexibility += 2 * (2 + not_damped_trend) * self.model_fit.params['smoothing_trend'] ** 2
 
         if self.model_fit.model.has_seasonal:
             if self.model_fit.model.seasonal == 'add':

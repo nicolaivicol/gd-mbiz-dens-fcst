@@ -50,8 +50,8 @@ class ThetaSmModel(TsModel):
     @staticmethod
     def trial_params(trend=True, seasonal=True, multiplicative=True, level=True, damp=False):
 
-        theta_max = 5 if trend else 1.0001
-        params_trial = [dict(name='theta', type='float', low=1.0, high=theta_max)]
+        theta_max = 5 if trend else 1.01
+        params_trial = [dict(name='theta', type='float', low=1.0, high=theta_max, step=0.01)]
 
         if seasonal:
             params_trial.append(dict(name='deseasonalize', type='categorical', choices=[True, False]))

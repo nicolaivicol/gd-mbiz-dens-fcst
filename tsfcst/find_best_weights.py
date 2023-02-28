@@ -18,17 +18,17 @@ log = logging.getLogger(os.path.basename(__file__))
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-t', '--target_name', default='microbusiness_density', help='microbusiness_density, active')
-    parser.add_argument('-g', '--tag', default='test', help='options: cv, test, full')
-    parser.add_argument('-a', '--asofdate', default='2022-10-01')
-    parser.add_argument('-f', '--fromdate', default='2022-08-01')
+    parser.add_argument('-t', '--target_name', default='active', help='active, microbusiness_density')
+    parser.add_argument('-g', '--tag', default='full-naive_ema_theta', help='options: cv, test, full')
+    parser.add_argument('-a', '--asofdate', default='2022-12-01')
+    parser.add_argument('-f', '--fromdate', default='no')
     parser.add_argument('-m', '--method', default='find_best', help='options: find_best, find_from_errors, find_best_corner')
     parser.add_argument('-n', '--ntrials', default=200, type=int)
     # sources of forecasts on validation / test folds
-    parser.add_argument('-i', '--naive', default='microbusiness_density-20220701-naive-test-trend_level_damp-1-0_0')
-    parser.add_argument('-o', '--ma', default='microbusiness_density-20220701-ma-test-trend_level_damp-100-0_0')
-    parser.add_argument('-e', '--theta', default='microbusiness_density-20220701-theta-test-trend_level_damp-100-0_0')
-    parser.add_argument('-w', '--hw', default='microbusiness_density-20220701-hw-test-trend_level_damp-100-0_0')
+    parser.add_argument('-i', '--naive', default='active-20221201-naive-full-trend_level_damp-1-0_0')  # active-20220701-naive-test-level-1-0_0
+    parser.add_argument('-o', '--ma', default='active-20221201-ema-full-trend_level_damp-20-0_0')  # active-20220701-ema-test-trend_level_damp-25-0_0
+    parser.add_argument('-e', '--theta', default='active-20221201-theta-full-trend_level_damp-50-0_0')  # active-20220701-theta-test-trend_level_damp-50-0_0
+    parser.add_argument('-w', '--hw', default='')
     # partition
     parser.add_argument('-p', '--part', type=int)
     parser.add_argument('-x', '--nparts', type=int)
@@ -36,20 +36,21 @@ def parse_args():
     return args
 
 
-def load_best_weights(weights_id, model_names = None):
+def load_best_weights(weights_id, model_names = None, normalize=True):
     dir_best_weights = f'{config.DIR_ARTIFACTS}/find_best_weights/{weights_id}'
     files_best_weights = glob.glob(f'{dir_best_weights}/*.csv')
     if len(files_best_weights) == 0:
         raise ValueError(f'files not found in {dir_best_weights}')
     df_best_weights = pl.concat([pl.read_csv(f) for f in files_best_weights])
 
-    # reweight to have sum of weights = 1:
-    if model_names is None:
-        model_names = ['naive', 'ma', 'theta', 'hw']
-    df_best_weights = df_best_weights.with_columns(pl.sum(model_names).alias('sum_weights'))
-    for model_name in model_names:
-        df_best_weights = df_best_weights.with_columns(pl.col(model_name) / pl.col('sum_weights'))
-    df_best_weights = df_best_weights.drop('sum_weights')
+    # normalize to have sum of weights = 1:
+    if normalize:
+        if model_names is None:
+            model_names = [m for m in df_best_weights.columns if m in ['naive', 'ma', 'theta', 'hw']]
+        df_best_weights = df_best_weights.with_columns(pl.sum(model_names).alias('sum_weights'))
+        for model_name in model_names:
+            df_best_weights = df_best_weights.with_columns(pl.col(model_name) / pl.col('sum_weights'))
+        df_best_weights = df_best_weights.drop('sum_weights')
 
     return df_best_weights
 
@@ -57,7 +58,7 @@ def load_best_weights(weights_id, model_names = None):
 if __name__ == '__main__':
     args = parse_args()
 
-    # python -m tsfcst.find_best_weights -t microbusiness_density -g test -a 2022-10-01 -f 2022-08-01 -m find_best_corner -n 200 -i "microbusiness_density-20220701-naive-test-trend_level_damp-1-0_0" -o "microbusiness_density-20220701-ma-test-trend_level_damp-100-0_0" -e "microbusiness_density-20220701-theta-test-trend_level_damp-100-0_0" -w "microbusiness_density-20220701-hw-test-trend_level_damp-100-0_0"
+    # python -m tsfcst.find_best_weights -t active -g naive_ema_theta -a 2022-12-01 -f 2022-08-01 -m find_best_corner -n 0
 
     log.info(f'Running {os.path.basename(__file__)} with parameters: \n'
              + json.dumps(vars(args), indent=2))
@@ -71,7 +72,7 @@ if __name__ == '__main__':
     method = args.method
     part = args.part
     nparts = args.nparts
-    dict_models_id_run = {'naive': args.naive, 'ma': args.ma, 'theta': args.theta, 'hw': args.hw}
+    dict_models_id_run = {'naive': args.naive, 'ma': args.ma, 'theta': args.theta}  #  'hw': args.hw
     model_names = list(dict_models_id_run.keys())
 
     id_run = f"{target_name}-{tag}-{method}-{asofdate.replace('-', '')}"
@@ -116,7 +117,7 @@ if __name__ == '__main__':
     df_fcsts = df_fcsts.with_columns(pl.col('cfips').cast(pl.Int32))
 
     # load actual data
-    df_actual, _, _ = load_data()
+    df_actual, _, _, _ = load_data()
     df_actual = df_actual.rename({'first_day_of_month': 'date'}).select(['cfips', 'date', target_name])
 
     # merge forecasts and actuals
@@ -155,15 +156,16 @@ if __name__ == '__main__':
         msg_str = ' | '.join([f"{name_}={w:.2f}" for name_, w in res['best_params'].items()])
         log.debug(f'best weights: ' + msg_str)
 
-        smapes_ = [WeightsFinder.smape(w) for w in ([res['weights']] + WeightsFinder.params_corners())]
-        msg_str = ' | '.join([f'{name_}={smape_:.2f}' for name_, smape_ in zip(['best'] + model_names, smapes_)])
+        smape_models = {f'smape_{m}': WeightsFinder.smape(w)
+                        for m, w in zip(model_names, WeightsFinder.params_corners())}
+        msg_str = ' | '.join([f"best={res['smape']:.2f}"]
+                             + [f'{name_}={smape_:.2f}' for name_, smape_ in zip(model_names, smape_models.values())])
         log.debug(f'compare SMAPEs:  ' + msg_str)
 
         res_dict = {
             **{'cfips': cfips, 'smape': np.round(res['smape'], 4)},
+            **smape_models,
             **res['best_params'],
-            **{'weights_arr': json.dumps(list(res['weights'])),
-               'weights_dict': json.dumps(res['best_params'])},
         }
         list_res.append(res_dict)
 

@@ -21,9 +21,13 @@ log = logging.getLogger(os.path.basename(__file__))
 
 # constant weights to apply to all cfips
 map_best_weights = {
-    'naive': {'naive': 1, 'ma': 0, 'theta': 0, 'hw': 0},
-    'theta': {'naive': 0, 'ma': 0, 'theta': 1, 'hw': 0},
-    'average': {'naive': 0.25, 'ma': 0.25, 'theta': 0.25, 'hw': 0.25},
+    'naive': {'naive': 1},
+    'ma': {'ma': 1},
+    'theta': {'theta': 1},
+    'hw': {'hw': 1},
+    'drift': {'drift': 1},
+    'avg_naive_theta': {'naive': 0.50, 'theta': 0.50},
+    'avg_naive_ma_theta_hw': {'naive': 0.25, 'ma': 0.25, 'theta': 0.25, 'hw': 0.25},
 }
 
 
@@ -53,19 +57,20 @@ def gen_submission():
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--target_name', default='active', help='microbusiness_density, active')
-    parser.add_argument('-g', '--tag', default='naive', help='options: test, full')
-    parser.add_argument('-a', '--asofdate', default='2022-12-01')
-    parser.add_argument('-n', '--periodsahead', default=6, type=int, help='3 for test, 6 for full')
+    parser.add_argument('-g', '--tag', default='ens', help='options: test, full')
+    parser.add_argument('-a', '--asofdate', default='2022-07-01')
+    parser.add_argument('-n', '--periodsahead', default=6, type=int, help='6 for submission')
     parser.add_argument('-s', '--selected_trials', default='best', help='options: best, top10')
     # best params:
-    parser.add_argument('-i', '--naive', default='microbusiness_density-20220701-naive-test-trend_level_damp-1-0_0')
-    parser.add_argument('-o', '--ma', default='microbusiness_density-20220701-ma-test-trend_level_damp-100-0_0')
-    parser.add_argument('-e', '--theta', default='microbusiness_density-20220701-theta-test-trend_level_damp-100-0_0')
-    parser.add_argument('-w', '--hw', default='microbusiness_density-20220701-hw-test-trend_level_damp-100-0_0')
+    parser.add_argument('-i', '--naive', default='active-20220701-naive-test-level-1-0_0')
+    parser.add_argument('-o', '--ma', default='active-20220701-ema-test-trend_level_damp-25-0_0')
+    parser.add_argument('-d', '--drift', default='active-20220701-drift-test-trend_level_damp-30-0_0')
+    parser.add_argument('-e', '--theta', default='active-20220701-theta-test-trend_level_damp-50-0_25')
+    parser.add_argument('-w', '--hw', default='active-20220701-hw-test-trend_level_damp-100-2_0')
     # best weights:
     parser.add_argument(
         '-v', '--weights',
-        default='naive'
+        default='lgbm-bin-naive-theta-h040-folds_1-active-20220701-active-test-naive_ema_theta-find_best_corner-20221201'
     )
 
     args = parser.parse_args()
@@ -81,11 +86,26 @@ if __name__ == '__main__':
              'combined with the best weights found. Each of the model is initialized with '
              'the best params found based on cv.')
 
+    # for submission
+    args.target = 'active'
+    args.tag = 'ens'
+    args.asofdate = '2022-12-01'
+    args.naive = 'active-20221201-naive-full-trend_level_damp-1-0_0'
+    args.ma = 'active-20221201-ema-full-trend_level_damp-20-0_0'
+    args.theta = 'active-20221201-theta-full-trend_level_damp-50-0_0'
+    args.weights = 'lgbm-bin-naive-theta-h040-folds_1-active-20220701-active-test-naive_ema_theta-find_best_corner-20221201'
+
     target_name = args.target_name
     tag = args.tag
     asofdate = args.asofdate
     periodsahead = args.periodsahead
-    dict_best_params_run_id = {'naive': args.naive, 'ma': args.ma, 'theta': args.theta, 'hw': args.hw}
+    dict_best_params_run_id = {
+        'naive': args.naive,
+        'ma': args.ma,
+        'drift': args.drift,
+        'theta': args.theta,
+        'hw': args.hw
+    }
     model_names = list(dict_best_params_run_id.keys())
     weights_name = args.weights
     selected_trials = args.selected_trials
@@ -107,7 +127,7 @@ if __name__ == '__main__':
     for model_name_, id_best_params in dict_best_params_run_id.items():
         dir_best_params = f'{config.DIR_ARTIFACTS}/find_best_params/{id_best_params}'
         files_best_params = glob.glob(f'{dir_best_params}/*.csv')
-        df_best_params = pl.concat([pl.read_csv(f) for f in files_best_params])
+        df_best_params = pl.concat([pl.read_csv(f) for f in files_best_params], how='diagonal')
         df_best_params = df_best_params.filter(pl.col('selected_trials') == selected_trials)
         dict_df_best_params[model_name_] = df_best_params
 
@@ -124,6 +144,11 @@ if __name__ == '__main__':
 
     assert df_best_weights is not None or best_weights is not None
 
+    if df_best_weights is not None:
+        model_names = [m for m in model_names if m in df_best_weights.columns]
+    elif best_weights is not None:
+        model_names = list(best_weights.keys())
+
     log.debug('generate forecast for each cfips')
     list_fcsts = []
     for cfips in tqdm(list_cfips, unit='cfips', leave=False, mininterval=3):
@@ -131,16 +156,16 @@ if __name__ == '__main__':
         df_ts = get_df_ts_by_cfips(cfips, target_name, df_train)
         ts = TsData(df_ts['first_day_of_month'], df_ts[target_name])
 
+        # load best weights
+        if df_best_weights is not None:
+            best_weights = df_best_weights.filter(pl.col('cfips') == cfips).select(model_names).to_dicts()[0]
+
         # load configs with best params of several forecasters
         best_cfgs = {}
         for name in model_names:
             df_best_params = dict_df_best_params[name]
             cfg = ForecasterConfig.from_df_with_best_params(cfips, df_best_params)
             best_cfgs[name] = cfg
-
-        # load best weights
-        if df_best_weights is not None:
-            best_weights = df_best_weights.filter(pl.col('cfips') == cfips).select(model_names).to_dicts()[0]
 
         ens = Ensemble(data=ts, fcster_configs=best_cfgs, weights=best_weights)
         fcst = ens.forecast(periodsahead)

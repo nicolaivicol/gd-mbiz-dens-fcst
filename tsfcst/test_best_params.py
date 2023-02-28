@@ -23,7 +23,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser = add_common_args(parser)
     parser.add_argument('-st', '--selected_trials', default='best', help='options: best, top10')
-    parser.add_argument('-pt', '--periods_test', default=3, type=int)
+    parser.add_argument('-pt', '--periods_test', default=5, type=int)
     args = parser.parse_args()
     return args
 
@@ -31,22 +31,24 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
 
-    # python -m tsfcst.test_best_params -t microbusiness_density -m ma -cv test -nt 100 -rc 0 -aod 2022-07-01 -st best
+    # python -m tsfcst.test_best_params -t active -m naive -c test -s trend_level_damp -n 1 -r 0 -a 2022-07-01 -st best
+    # python -m tsfcst.test_best_params -t active -m ema -c test -s trend_level_damp -n 20 -r 0 -a 2022-07-01 -st best
+    # python -m tsfcst.test_best_params -t active -m theta -c test -n 50 -r 0 -a 2022-07-01 -st best
 
     id_run = get_id_run(**vars(args))
     log.info(f'Running {os.path.basename(__file__)}, id_run={id_run}, with parameters: \n'
              + json.dumps(vars(args), indent=2))
     log.info('This tests best parameters found previously on validation and test.')
 
-    target_name = args.target_name
-    cv_args = config.CV_ARGS_DICT[args.cv_args]
+    target_name = args.targetname
+    cv_args = config.CV_ARGS_DICT[args.cvargs]
     selected_trials = args.selected_trials
 
     dir_out = f'{config.DIR_ARTIFACTS}/{Path(__file__).stem}/{id_run}'
     os.makedirs(dir_out, exist_ok=True)
 
     # load ts data
-    df_train, df_test, df_census = load_data()
+    df_train, df_test, df_census, df_pop = load_data()
     list_cfips = sorted(np.unique(df_train['cfips']))
     log.debug(f'{len(list_cfips)} cfips loaded')
 

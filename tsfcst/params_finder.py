@@ -46,6 +46,9 @@ class ParamsFinder:
     periods_out = 0
     periods_val_last = None
 
+    # ovverides
+    choices_use_data_since = None
+
     # cache during find_best() to avoid repeated calculations
     _cache = {}
 
@@ -56,7 +59,8 @@ class ParamsFinder:
         Parameters to choose from are the parameters of the forecasting model and the forecaster itself.
         Score to minimize is `smape_cv_opt` - SMAPE adjusted with penalties
         """
-        params_trial_forecaster = ParamsFinder.get_trial_params(trial, Forecaster.trial_params())
+        forecaster_trial_params = Forecaster.trial_params(ParamsFinder.choices_use_data_since)
+        params_trial_forecaster = ParamsFinder.get_trial_params(trial, forecaster_trial_params)
         params_trial_model_narrowed = ParamsFinder.model_cls.trial_params(
             trend=ParamsFinder.trend,
             seasonal=ParamsFinder.seasonal,
@@ -92,7 +96,8 @@ class ParamsFinder:
             )
             smape_cv_opt_ = smape_cv_opt(**metrics_cv)
             model_flexibility_ = fcster.model.flexibility()
-        except:
+        except Exception as e:
+            log.error(f'Error: {str(e)}')
             smape_cv_opt_ = 99999
             model_flexibility_ = 0
 

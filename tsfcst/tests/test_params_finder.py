@@ -2,7 +2,7 @@ import unittest
 import plotly.offline as py
 
 from tsfcst.time_series import TsData
-from tsfcst.models.inventory import ThetaSmModel
+from tsfcst.models.inventory import ThetaSmModel, ExponentialMovingAverageModel
 from tsfcst.params_finder import ParamsFinder
 from tsfcst.forecasters.forecaster import Forecaster
 from tsfcst.utils_tsfcst import plot_fcsts_and_actual
@@ -11,12 +11,12 @@ from tsfcst.utils_tsfcst import plot_fcsts_and_actual
 class TestParamsFinder(unittest.TestCase):
 
     def test_ParamsFinder(self):
-        model_cls = ThetaSmModel
+        model_cls = ExponentialMovingAverageModel
         ts = TsData.sample_monthly()
 
         ParamsFinder.model_cls = model_cls
         ParamsFinder.data = ts
-        df_trials, best_result, param_importances = ParamsFinder.find_best(n_trials=50, n_trials_grid=10, use_cache=False)
+        df_trials, best_result, param_importances = ParamsFinder.find_best(n_trials=25, n_trials_grid=10, use_cache=False)
         print('best_params: \n' + str(best_result))
 
         best_metric, best_params_median = ParamsFinder.best_params_top_median(df_trials)

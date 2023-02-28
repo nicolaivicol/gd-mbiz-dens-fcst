@@ -22,7 +22,7 @@ set_display_options()
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--targetname', default='active', help='microbusiness_density, active')
-    parser.add_argument('-a', '--asofdate', default='2022-10-01')
+    parser.add_argument('-a', '--asofdate', default='2022-12-01')
     args = parser.parse_args()
     return args
 
@@ -39,7 +39,7 @@ def load_feats(feats_name):
 if __name__ == '__main__':
     args = parse_args()
 
-    # python -m tsfcst.compute_feats -t microbusiness_density -a 2022-07-01
+    # python -m tsfcst.compute_feats -t active -a 2022-12-01
 
     id_run = get_id_run(**vars(args))
     log.info(f'Running {os.path.basename(__file__)}, id_run={id_run}, with parameters: \n'
@@ -53,7 +53,7 @@ if __name__ == '__main__':
     os.makedirs(dir_out, exist_ok=True)
 
     # load data
-    df_train, _, _ = load_data()
+    df_train, _, _, _ = load_data()
     if asofdate is not None:
         df_train = df_train.filter(pl.col('first_day_of_month') <= pl.lit(asofdate).str.strptime(pl.Date, fmt='%Y-%m-%d'))
     list_cfips = sorted(np.unique(df_train['cfips']))

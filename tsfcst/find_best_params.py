@@ -14,7 +14,7 @@ from etl import load_data, get_df_ts_by_cfips
 from tsfcst.params_finder import ParamsFinder
 from tsfcst.models.inventory import MODELS
 from tsfcst.time_series import TsData
-
+from tsfcst.utils_tsfcst import get_lin_reg_summary, chowtest
 
 log = logging.getLogger(os.path.basename(__file__))
 
@@ -34,9 +34,9 @@ def eta(n_cfips, model, nparts, ntrials):
 
 
 def add_common_args(parser):
-    parser.add_argument('-t', '--targetname', default='microbusiness_density', help='microbusiness_density, active')
-    parser.add_argument('-m', '--model', default='theta', help='ma, theta, hw, prophet')
-    parser.add_argument('-c', '--cvargs', default='test', help='options: test, full')
+    parser.add_argument('-t', '--targetname', default='active', help='microbusiness_density, active')
+    parser.add_argument('-m', '--model', default='theta', help='ma, ema, theta, hw, prophet')
+    parser.add_argument('-c', '--cvargs', default='full', help='options: test, full')
     parser.add_argument('-s', '--searchargs', default='trend_level_damp')
     parser.add_argument('-n', '--ntrials', default=100, type=int)
     parser.add_argument('-r', '--regcoef', default=0.0, type=float)
@@ -62,7 +62,7 @@ def get_id_run(targetname, asofdate, model, cvargs, searchargs, ntrials, regcoef
 if __name__ == '__main__':
     args = parse_args()
 
-    # python -m tsfcst.find_best_params -t microbusiness_density -m theta -c test -n 100 -r 0 -a 2022-07-01 -p 1 -x 16
+    # python -m tsfcst.find_best_params -t active -m hw -c test -s level -n 100 -r 0 -a 2022-12-01 -p 1 -x 16
 
     id_run = get_id_run(**vars(args))
     log.info(f'Running {os.path.basename(__file__)}, id_run={id_run}, with parameters: \n'
@@ -83,7 +83,7 @@ if __name__ == '__main__':
     os.makedirs(dir_out, exist_ok=True)
 
     # load data
-    df_train, df_test, df_census = load_data()
+    df_train, df_test, df_census, df_pop = load_data()
     df_train = df_train.filter(pl.col('first_day_of_month') <= pd.to_datetime(asofdate))
     list_cfips = sorted(np.unique(df_train['cfips']))
     n_cfips = len(list_cfips)
@@ -114,10 +114,44 @@ if __name__ == '__main__':
     ParamsFinder.periods_out = cvargs['periods_out']
     ParamsFinder.periods_val_last = cvargs['periods_val_last']
 
+    is_simple_model = model in ['naive', 'ma', 'ema', 'sma', 'drift']
+    if is_simple_model:
+        ParamsFinder.trend = False
+        ParamsFinder.seasonal = False
+        ParamsFinder.multiplicative = False
+        ParamsFinder.level = False
+        ParamsFinder.damp = False
+        ParamsFinder.choices_use_data_since = ['all']
+
+        if model == 'drift':
+            ParamsFinder.trend = True
+
     for cfips in tqdm(list_cfips, unit='cfips'):
         log.debug(f'cfips={cfips}')
+
         df_ts = get_df_ts_by_cfips(cfips, targetname, df_train)
-        ParamsFinder.data = TsData(df_ts['first_day_of_month'], df_ts[targetname])
+        ts = TsData(df_ts['first_day_of_month'], df_ts[targetname])
+        ParamsFinder.data = ts
+
+        if not is_simple_model:
+            # reset defaults first...
+            ParamsFinder.trend = searchargs['trend']
+            ParamsFinder.choices_use_data_since = None
+
+            # then override settings based on data:
+            # - use data after structural break
+            lastidx_20210101 = np.where(ts.time == pd.to_datetime('2021-01-01'))[0][0]
+            chow_value, p_value = chowtest(ts.target, lastidx_20210101)
+            if chow_value > 100:
+                ParamsFinder.choices_use_data_since = ['2021-02-01']
+
+            # - do not look for trends if last 18 obs do not exhibit a trend
+            if ParamsFinder.trend:
+                lin_reg_summary_last_18 = get_lin_reg_summary(ts.target, 18)
+                slope_time = lin_reg_summary_last_18['slope']
+                pval_time = lin_reg_summary_last_18['p_value']
+                if abs(slope_time) < 0.001 or pval_time > 0.10 or (abs(slope_time) < 0.002 and pval_time > 0.05):
+                    ParamsFinder.trend = False
 
         try:
             df_trials, best_result, param_importances = ParamsFinder.find_best(

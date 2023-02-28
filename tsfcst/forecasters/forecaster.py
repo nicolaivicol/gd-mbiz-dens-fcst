@@ -124,10 +124,12 @@ class Forecaster:
         return cls(model_cls=cfg.model_cls, data=data, params_model=cfg.params_model, **cfg.params_forecaster)
 
     @staticmethod
-    def trial_params() -> List[Dict]:
+    def trial_params(choices_use_data_since=None) -> List[Dict]:
+        if choices_use_data_since is None:
+            choices_use_data_since = ['all', '2020-02-01', '2021-02-01']
         trial_params_ = [
             # dict(name='boxcox_lambda', type='float', low=0.0, high=1.0),
-            dict(name='use_data_since', type='categorical', choices=['all', '2020-02-01', '2021-02-01']) #
+            dict(name='use_data_since', type='categorical', choices=choices_use_data_since) #
         ]
         return trial_params_
 
@@ -211,7 +213,7 @@ class Forecaster:
 
     def _handle_cv_args(self, n_train_dates, step_train_dates, periods_val, periods_val_last):
         if n_train_dates is None and step_train_dates is None and periods_val is None and periods_val_last is None:
-            defaults = {'D': (5, 28, 28, 28), 'W': (5, 4, 4, 5), 'M': (3, 2, 7, 5), 'MS': (3, 2, 7, 5)}
+            defaults = {'D': (5, 28, 28, 28), 'W': (5, 4, 4, 5), 'M': (3, 2, 5, 5), 'MS': (3, 2, 5, 5)}
             n_train_dates, step_train_dates, periods_val, periods_val_last = defaults[self.freq_model]
         return n_train_dates, step_train_dates, periods_val, periods_val_last
 

@@ -34,7 +34,7 @@ class Ensemble:
             forecaster = self.forecasters[name]
             fcst = forecaster.forecast(periods_ahead, as_ts=True)
             fcsts['date'] = fcst.time
-            fcsts[name] = fcst.target
+            fcsts[name] = fcst.target * 1.0
 
         df_fcsts = pl.DataFrame(fcsts).with_columns(pl.col('date').cast(pl.Date))
         df_ens = pl.DataFrame({'ensemble': np.dot(df_fcsts.select(self.names).to_numpy(), self.weights_arr)})
