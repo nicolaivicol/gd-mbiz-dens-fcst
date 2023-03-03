@@ -3,8 +3,9 @@ import streamlit as st
 import os
 import random
 import logging
+import polars as pl
 
-from etl import load_data, get_df_ts_by_cfips
+from etl import load_data, get_df_ts_by_cfips, get_df_ts_by_state
 from tsfcst.params_finder import ParamsFinder
 from tsfcst.models.inventory import MODELS
 from tsfcst.forecasters.forecaster import Forecaster
@@ -29,8 +30,14 @@ def history_selections():
     return []
 
 
+@st.cache(allow_output_mutation=True)
+def history_selections_state():
+    return ['']
+
+
 df = get_data()
-hs = history_selections()
+hs_cfips = history_selections()
+hs_state = history_selections_state()
 
 # st.title("Forecasting microbusiness density")
 # st.markdown("""---""")
@@ -39,14 +46,28 @@ st.sidebar.title("Control Panel")
 if 'count' not in st.session_state:
     st.session_state.rand_i = 0
 
-cfips_to_select = ([hs[-1]] if len(hs) > 0 else []) + sorted(list(np.unique(df['cfips'])))
-cfips = int(st.sidebar.selectbox('Select county (by CFIPS):', cfips_to_select))
+states_to_select = ['all'] + sorted(list(np.unique(df['state'])))
+state = st.sidebar.selectbox('Select state:', states_to_select)
+if state != hs_state[-1]:
+    cfips = ''
+    hs_cfips.append(cfips)
+hs_state.append(state)
+
+placeholder_selectbox_cfips = st.sidebar.empty()
+cfips_filt = df['cfips'] if state in ['', 'all'] else df.filter(pl.col('state') == state)['cfips']
+cfips_to_select = ([hs_cfips[-1]] if len(hs_cfips) > 0 else []) + [''] + sorted(list(np.unique(cfips_filt)))
+cfips = placeholder_selectbox_cfips.selectbox('Select county (by CFIPS):', cfips_to_select)
 
 if st.sidebar.button('Select random series'):
-    i = random.randint(0, len(df['cfips']) - 1)
-    cfips = df['cfips'][i]
-    hs.append(cfips)
-    # hs.append(cfips)
+    cfips_filt = df['cfips'] if state in ['', 'all'] else df.filter(pl.col('state') == state)['cfips']
+    i = random.randint(0, len(cfips_filt) - 1)
+    cfips = cfips_filt[i]
+    hs_cfips.append(str(cfips))
+    #cfips_filt = df['cfips'] if state in ['', 'all'] else df.filter(pl.col('state') == state)['cfips']
+    cfips_to_select.insert(0, cfips)
+    #cfips_to_select =  ([hs_cfips[-1]] if len(hs_cfips) > 0 else []) + [''] + sorted(list(np.unique(cfips_filt)))
+    cfips = placeholder_selectbox_cfips.selectbox('Select county (by CFIPS):', cfips_to_select)
+
 
 target_name = st.sidebar.selectbox('Select target to forecast:', ['active', 'microbusiness_density'])
 model_alias = st.sidebar.selectbox('Select model:', list(MODELS.keys()), index=list(MODELS.keys()).index('theta'))
@@ -69,7 +90,11 @@ with st.sidebar.expander('CV settings:'):
         help="How many months in the last validation fold.")
     periods_out = 5
 
-df_ts = get_df_ts_by_cfips(cfips=cfips, target_name=target_name, _df=df)
+if cfips != '':
+    df_ts = get_df_ts_by_cfips(cfips=cfips, target_name=target_name, _df=df)
+else:
+    df_ts = get_df_ts_by_state(state=state, target_name=target_name, _df=df)
+
 ts = TsData(df_ts['first_day_of_month'], df_ts[target_name])
 model_cls = MODELS[model_alias]
 
@@ -99,8 +124,9 @@ use_cache = st.sidebar.checkbox('use_cache', True)
 
 fig_paralel_coords, df_trials, best_result, fig_imp, best_result_median = None, None, None, None, None
 
-id_cache = f"{cfips}-{target_name}-{model_alias}-{n_trials}-{n_trials_grid}-{str(reg_coef).replace('.', '_')}"
+id_cache = f"{state}-{cfips}-{target_name}-{model_alias}-{n_trials}-{n_trials_grid}-{str(reg_coef).replace('.', '_')}"
 cache_exists = ParamsFinder.cache_exists(id_cache)
+id_show_series = (f'state={state} | ' if state != '' else '') + (f'cfips={cfips}' if cfips != '' else '')
 
 if find_best_params or cache_exists:
     ParamsFinder.model_cls = model_cls
@@ -140,9 +166,12 @@ if find_best_params or cache_exists:
 
     fig_imp = ParamsFinder.plot_importances(param_importances)
 
-    using_best_placeholder.write(f'cfips={cfips} | using best params')
+    using_best_placeholder.write(f'{id_show_series} | using best params')
 else:
-    using_best_placeholder.write(f'cfips={cfips} | using default params')
+    using_best_placeholder.write(f'{id_show_series} | using default params')
+
+find_best_params = False
+cache_exists = False
 
 
 if best_result is not None:
@@ -153,6 +182,9 @@ else:
 params_forecaster_names = [p['name'] for p in Forecaster.trial_params()]
 params_forecaster = {k: v for k, v in best_params.items() if k in params_forecaster_names}
 params_model = {k: v for k, v in best_params.items() if k not in params_forecaster_names}
+
+if model_cls.__name__ == 'DriftExogRatesModel':
+    params_model.update({'cfips': cfips})
 
 fcster = Forecaster(model_cls=model_cls, data=ts, params_model=params_model, **params_forecaster)
 
@@ -169,7 +201,7 @@ tab1, tab2, tab3, tab4 = st.tabs(["Plot forecasts", "Plot parallel", "Plot impor
 
 fig_fcsts = plot_fcsts_and_actual(ts.data, df_fcsts_cv)
 metrics_cv_str = Forecaster.metrics_cv_str_pretty(metrics_cv)
-fig_fcsts.update_layout(title=f'Forecasts by model={model_cls.__name__} for cfips={cfips}', xaxis_title=metrics_cv_str)
+fig_fcsts.update_layout(title=f'Forecasts by model={model_cls.__name__} for {id_show_series}', xaxis_title=metrics_cv_str)
 # py.plot(fig_fcsts)
 
 # py.plot(fig)

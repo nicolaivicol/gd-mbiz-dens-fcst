@@ -9,7 +9,7 @@ import config
 def load_raw_data():
     dtypes_train = {
         'row_id': str,
-        'cfips': pl.Int32,
+        'cfips': pl.Int64,
         'county': str,
         'state': str,
         'first_day_of_month': pl.Date,
@@ -22,7 +22,7 @@ def load_raw_data():
 
     dtypes_test = {
         'row_id': str,
-        'cfips': pl.Int32,
+        'cfips': pl.Int64,
         'first_day_of_month': pl.Date
     }
     df_test = pl.read_csv(f'{config.DIR_DATA}/test.csv', dtypes=dtypes_test)
@@ -33,7 +33,7 @@ def load_raw_data():
         'pct_bb_2019': pl.Float64,
         'pct_bb_2020': pl.Float64,
         'pct_bb_2021': pl.Float64,
-        'cfips': pl.Int32,
+        'cfips': pl.Int64,
         'pct_college_2017': pl.Float64,
         'pct_college_2018': pl.Float64,
         'pct_college_2019': pl.Float64,
@@ -69,7 +69,30 @@ def load_data():
 
 
 def get_df_ts_by_cfips(cfips, target_name, _df: pl.DataFrame):
-    return _df.filter(pl.col('cfips') == cfips).select(['first_day_of_month', target_name])
+    return _df.filter(pl.col('cfips') == int(cfips)).select(['first_day_of_month', target_name])
+
+
+def get_df_ts_by_state(state, target_name, _df: pl.DataFrame):
+    if state not in ['', 'all']:
+        df_filt = _df.filter(pl.col('state') == state)
+    else:
+        df_filt = _df.filter(pl.col('state') != '')
+
+    if target_name == 'active':
+        df_ts = df_filt.groupby('first_day_of_month').agg(pl.sum(target_name)).sort('first_day_of_month')
+    else:
+        df_ts = df_filt.groupby('first_day_of_month').agg(pl.mean(target_name)).sort('first_day_of_month')
+
+    return df_ts
+
+
+def get_df_ts_by_id(idcol, id, target_name, _df: pl.DataFrame):
+    if idcol == 'cfips':
+        return get_df_ts_by_cfips(id, target_name, _df)
+    elif idcol == 'state':
+        return get_df_ts_by_state(id, target_name, _df)
+    else:
+        raise ValueError(f'idcol={idcol} not recognized')
 
 
 def load_df_ts_by_cfips(cfips, target_name):
@@ -87,7 +110,6 @@ def population_2021_for_2023():
     df['cfips'] = df.GEO_ID.apply(lambda x: int(x.split('US')[-1]))
     df = pl.from_pandas(df[['cfips', 'population']]) \
         .with_columns([
-            pl.col('cfips').cast(pl.Int32),
             pl.col('population').cast(pl.Float64),
             pl.lit('2023-01-01').str.strptime(pl.Date, fmt='%Y-%m-%d').alias('first_day_of_month')
         ]) \

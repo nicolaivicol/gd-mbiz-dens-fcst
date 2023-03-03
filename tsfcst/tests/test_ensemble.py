@@ -21,11 +21,15 @@ class TestEnsemble(unittest.TestCase):
         }
 
     def test_forecast(self):
-        ens = Ensemble(
-            data=self.ts,
-            fcster_configs=self.cfgs,
-            weights={'naive': 0.25, 'ma': 0.25, 'theta': 0.25, 'hw': 0.25,}
-        )
+        ens = Ensemble(data=self.ts, fcster_configs=self.cfgs)
+        fcst = ens.forecast(7)
+        self.assertEqual(['date', 'naive', 'ma', 'theta', 'hw', 'ensemble'], list(fcst.columns))
+        self.assertEqual(7, len(fcst))
+        avg_models = np.array(fcst.select(list(self.cfgs.keys())).mean(axis=1))
+        self.assertTrue(all(np.abs(avg_models - np.array(fcst['ensemble'])) < 0.01))
+
+    def test_forecast_median(self):
+        ens = Ensemble(data=self.ts, fcster_configs=self.cfgs, method='median')
         fcst = ens.forecast(7)
         self.assertEqual(['date', 'naive', 'ma', 'theta', 'hw', 'ensemble'], list(fcst.columns))
         self.assertEqual(7, len(fcst))

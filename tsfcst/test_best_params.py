@@ -13,8 +13,7 @@ import config
 from etl import load_data, get_df_ts_by_id
 from tsfcst.time_series import TsData
 from tsfcst.forecasters.forecaster import Forecaster, ForecasterConfig
-from tsfcst.find_best_params import add_common_args, get_id_run
-
+from tsfcst.find_best_params import add_common_args, get_id_run, load_best_params
 
 log = logging.getLogger(os.path.basename(__file__))
 
@@ -57,10 +56,7 @@ if __name__ == '__main__':
     log.debug(f'{len(list_ids)} {idcol}s loaded')
 
     # load best params (! it looks for the same run ID)
-    dir_best_params = f'{config.DIR_ARTIFACTS}/find_best_params/{id_run}'
-    files_best_params = sorted(glob.glob(f'{dir_best_params}/*.csv'))
-    df_best_params = pl.concat([pl.read_csv(f) for f in files_best_params])
-    df_best_params = df_best_params.filter(pl.col('selected_trials') == args.selected_trials)
+    df_best_params = load_best_params(id_run, args.selected_trials)
 
     list_metrics_cv, list_df_fcsts_cv = [], []
 

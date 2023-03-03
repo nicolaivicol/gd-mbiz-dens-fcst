@@ -5,6 +5,7 @@ import polars as pl
 import warnings
 from typing import List, Dict, Union
 from scipy.special import boxcox1p, inv_boxcox1p
+import datetime
 
 from tsfcst.time_series import TsData
 from tsfcst.models.abstract_model import TsModel
@@ -36,8 +37,8 @@ class ForecasterConfig:
         return cls(model_cls=model_cls, params_model=params_model, params_forecaster=params_forecaster)
 
     @classmethod
-    def from_df_with_best_params(cls, cfips: int, df_best_params: pl.DataFrame) -> 'ForecasterConfig':
-        best_params = df_best_params.filter(pl.col('cfips') == cfips)
+    def from_df_with_best_params(cls, id, df_best_params: pl.DataFrame, idcol='cfips') -> 'ForecasterConfig':
+        best_params = df_best_params.filter(pl.col(idcol) == id)
         if len(best_params) > 0 and 'smape_cv_opt' in best_params.columns:
             best_params = best_params.sort('smape_cv_opt')
         best_params = best_params.to_dicts()[0]
@@ -148,6 +149,9 @@ class Forecaster:
     def fit(self, train_date=None):
         self._data_train = self._prep_data_train(train_date=train_date)
         self._data_exog_train = self._prep_data_exog_train(train_date=train_date)
+        if 'asofdate' in self.model_cls.default_params().keys():
+            self.params_model['asofdate'] = pd.to_datetime(str(train_date)).strftime('%Y-%m-%d')
+
         self.model = self.model_cls(data=self._data_train, params=self.params_model, data_exog=self._data_exog_train)
         self.model.fit()
 
@@ -205,6 +209,13 @@ class Forecaster:
         metrics_fit = calc_fcst_error_metrics(self.data.data[[t, v]], df_fits_cv[cols_fit], time_name=t, target_name=v)
         metrics_fit = {k + '_fit': v for k, v in metrics_fit.items()}
         metrics_cv.update(metrics_fit)
+
+        # join actuals
+        df_actual = pl.from_pandas(self.data.data[[t, v]]) \
+            .with_columns([pl.col(t).cast(pl.Date), pl.col(v).cast(pl.Float64)]) \
+            .filter(pl.col(t) > min(train_dates)) \
+            .rename({'value': 'actual'})
+        df_fcsts_cv = df_fcsts_cv.join(df_actual, on=t, how='outer').sort(t)
 
         df_fcsts_cv = df_fcsts_cv.to_pandas()
 

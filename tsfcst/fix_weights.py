@@ -1,66 +1,59 @@
 import polars as pl
-import glob
+import os
 
+from tsfcst.find_best_params import load_best_params
+from tsfcst.find_best_weights import load_best_weights
 from utils import set_display_options, describe_numeric
 import config
+import manual_labels
 
 
 set_display_options()
 
-weights_alias = 'active-full-naive_ema_theta-find_best_corner-20221201'
-# weights_alias = 'active-naive_ema_theta-find_best_corner-20221201'
-
-# params_map = {
-#     'naive': 'active-20220701-naive-test-level-1-0_0',
-#     'ma': 'active-20220701-ema-test-trend_level_damp-25-0_0',
-#     'theta': 'active-20220701-theta-test-trend_level_damp-50-0_0'
+# weights_alias = 'active-feats-naive_ema_theta-corner-20220701-no'
+# dict_model_params = {
+#     'naive': 'active-cfips-20220701-naive-test-tld-1-0_0',
+#     'ema': 'active-cfips-20220701-ema-test-tld-20-0_0',
+#     'theta': 'active-cfips-20220701-theta-test-tld-50-0_02'
 # }
 
-params_map = {
-    'naive': 'active-20221201-naive-full-trend_level_damp-1-0_0',
-    'ma': 'active-20221201-ma-full-trend_level_damp-20-0_0',
-    'theta': 'active-20221201-theta-full-trend_level_damp-50-0_0'
+# weights_alias = 'active-target-naive_ema_theta-corner-20221201-20220801'
+# dict_model_params = {
+#     'naive': 'active-cfips-20220701-naive-test-tld-1-0_0',
+#     'ema': 'active-cfips-20220701-ema-test-tld-20-0_0',
+#     'theta': 'active-cfips-20220701-theta-test-tld-50-0_02'
+# }
+
+weights_alias = 'active-feats-naive_ema_theta-corner-20221201-no'
+dict_model_params = {
+    'naive': 'active-cfips-20221201-naive-full-tld-1-0_0',
+    'ema': 'active-cfips-20221201-ema-full-tld-20-0_0',
+    'theta': 'active-cfips-20221201-theta-full-tld-50-0_02'
 }
 
-file_weights = f'{config.DIR_ARTIFACTS}/find_best_weights/{weights_alias}/{weights_alias}.csv'
-df_weights = pl.read_csv(file_weights)
+df_weights = load_best_weights(weights_alias, normalize=False)
+print(df_weights.head().to_pandas())
 
-naive_alias = params_map['naive']
-dir_best_params = f'{config.DIR_ARTIFACTS}/find_best_params/{naive_alias}'
-files_best_params = sorted(glob.glob(f'{dir_best_params}/*.csv'))
-df_naive = pl.concat([pl.read_csv(f) for f in files_best_params])
-df_naive = df_naive\
-    .filter(pl.col('selected_trials') == 'best')\
-    .select(['cfips', 'smape_cv_opt'])\
-    .rename({'smape_cv_opt': 'smape_cv_opt_naive'})
-print(df_naive.head().to_pandas())
+# load all params
+df = df_weights
+stats_before = df.select(dict_model_params.keys()).mean().with_columns(pl.lit('before').alias('when'))
 
-theta_alias = params_map['theta']
-dir_best_params = f'{config.DIR_ARTIFACTS}/find_best_params/{theta_alias}'
-files_best_params = sorted(glob.glob(f'{dir_best_params}/*.csv'))
-df_theta = pl.concat([pl.read_csv(f) for f in files_best_params])
-df_theta = df_theta\
-    .filter(pl.col('selected_trials') == 'best')\
-    .select(['cfips', 'smape_cv_opt', 'theta'])\
-    .rename({'smape_cv_opt': 'smape_cv_opt_theta', 'theta': 'par_theta'})
-print(df_theta.head().to_pandas())
+for model, model_params_id in dict_model_params.items():
 
-ma_alias = params_map['ma']
-dir_best_params = f'{config.DIR_ARTIFACTS}/find_best_params/{ma_alias}'
-files_best_params = sorted(glob.glob(f'{dir_best_params}/*.csv'))
-df_ma = pl.concat([pl.read_csv(f) for f in files_best_params])
-df_ma = df_ma \
-    .filter(pl.col('selected_trials') == 'best') \
-    .select(['cfips', 'smape_cv_opt', 'window']) \
-    .rename({'smape_cv_opt': 'smape_cv_opt_ma', 'window': 'par_window'})
-print(df_ma.head().to_pandas())
+    df_params = load_best_params(model_params_id)
+    df_params = df_params.rename({'smape_cv_opt': f'smape_cv_opt_{model}'})
+    cols = ['cfips', f'smape_cv_opt_{model}']
 
-df = df_weights\
-    .join(df_naive, on='cfips')\
-    .join(df_ma, on='cfips')\
-    .join(df_theta, on='cfips')
+    if model == 'theta':
+        df_params = df_params.rename({'theta': 'par_theta'})
+        cols.append('par_theta')
+    elif model in ['ma', 'ema']:
+        df_params = df_params.rename({'window': f'par_window_{model}'})
+        cols.append(f'par_window_{model}')
 
-describe_numeric(df.to_pandas())
+    df = df.join(df_params.select(cols), on='cfips')
+
+print(describe_numeric(df.to_pandas()))
 
 # replace theta with naive where it is equivalent
 df = df.with_columns(
@@ -69,36 +62,74 @@ df = df.with_columns(
      & ((pl.col('smape_naive') - pl.col('smape_theta')) <= 0.05)
      ).alias('theta_is_naive'))
 
+print(f"{df['theta_is_naive'].sum()/df['theta'].sum()*100:.2f}% of best theta is naive")
 print(df.filter(pl.col('theta_is_naive')).head().to_pandas())
+
+# override theta as naive
 df = df.with_columns([
     pl.when(pl.col('theta_is_naive')).then(0).otherwise(pl.col('theta')).alias('theta'),
     pl.when(pl.col('theta_is_naive')).then(1).otherwise(pl.col('naive')).alias('naive')
 ])
 df = df.drop('theta_is_naive')
+stats_after_theta = df.select(dict_model_params.keys()).mean().with_columns(pl.lit('after_theta').alias('when'))
 
-# replace ma with naive where it is equivalent
+# replace ma/ema with naive where it is equivalent
+ma = 'ema'
 df = df.with_columns(
-    ((pl.col('ma') == 1)
-     & (pl.col('par_window') <= 1)
-     & ((pl.col('smape_naive') - pl.col('smape_ma')) <= 0.05)
-     ).alias('ma_is_naive'))
-df.filter(pl.col('ma_is_naive')).to_pandas()
+    ((pl.col(ma) == 1)
+     & (pl.col(f'par_window_{ma}') <= 1)
+     & ((pl.col('smape_naive') - pl.col(f'smape_{ma}')) <= 0.05)
+     ).alias(f'{ma}_is_naive'))
 
-df = df.with_columns([
-    pl.when(pl.col('ma_is_naive')).then(0).otherwise(pl.col('ma')).alias('ma'),
-    pl.when(pl.col('ma_is_naive')).then(1).otherwise(pl.col('naive')).alias('naive')
-])
-df = df.drop('ma_is_naive')
+n = df[f'{ma}_is_naive'].sum()
+print(f"{n/df['theta'].sum()*100:.2f}% of best {ma} is naive")
 
+if n > 0:
+    print(df.filter(pl.col(f'{ma}_is_naive')).to_pandas())
+    df = df.with_columns([
+        pl.when(pl.col(f'{ma}_is_naive')).then(0).otherwise(pl.col(ma)).alias(ma),
+        pl.when(pl.col(f'{ma}_is_naive')).then(1).otherwise(pl.col('naive')).alias('naive')
+    ])
+
+df = df.drop(f'{ma}_is_naive')
+stats_after_ema = df.select(dict_model_params.keys()).mean().with_columns(pl.lit('after_ema').alias('when'))
+
+# override from manual labels
+dict_override = {
+    'naive': manual_labels.NAIVE,
+    'ema': manual_labels.MA,
+    'ma': manual_labels.MA,
+    'theta': manual_labels.TREND,
+}
+
+for m_overriding in dict_model_params.keys():
+    override = [cfips in dict_override[m_overriding] for cfips in df['cfips']]
+    df = pl.concat([df, pl.DataFrame({'override': override})], how='horizontal')
+    for m_existing in dict_model_params.keys():
+        if m_overriding == m_existing:
+            df = df.with_columns(pl.when(pl.col('override')).then(1).otherwise(pl.col(m_overriding)).alias(m_overriding))
+        else:
+            df = df.with_columns(pl.when(pl.col('override')).then(0).otherwise(pl.col(m_existing)).alias(m_existing))
+    df = df.drop('override')
+
+stats_after_override = df.select(dict_model_params.keys()).mean().with_columns(pl.lit('after_override').alias('when'))
+
+print('summary stats:')
 print(describe_numeric(df.to_pandas()))
 
+print('sample:')
 print(df.head().to_pandas())
 
-df.write_csv(file_weights, float_precision=4)
+print('distribution by model, before and after fix:')
+stats_after_all = df.select(dict_model_params.keys()).mean().with_columns(pl.lit('after_all').alias('when'))
+print(pl.concat([stats_before, stats_after_theta, stats_after_ema, stats_after_override, stats_after_all]))
 
+dir_out = f'{config.DIR_ARTIFACTS}/find_best_weights/{weights_alias}-manual_fix'
+os.makedirs(dir_out, exist_ok=True)
+df.write_csv(f'{dir_out}/{weights_alias}.csv', float_precision=4)
 
-# distribution by model
-#      naive    ma  theta
-# val:  0.25  0.25   0.50
-# test: 0.60  0.10   0.30
-# full: 0.48  0.11   0.41
+# distribution by model:
+#                     naive    ma  theta
+# feats-cv-learn:      0.28  0.23   0.49
+# target-test-learn:   0.55  0.11   0.34
+# feats-cv-pred:       0.36  0.18   0.46

@@ -7,13 +7,9 @@ import polars as pl
 import glob
 
 import config
-from etl import load_data, get_df_ts_by_cfips
+from etl import load_data
 from tsfcst.find_best_weights import load_best_weights
-from tsfcst.params_finder import ParamsFinder
-from tsfcst.models.inventory import MODELS
-from tsfcst.forecasters.forecaster import Forecaster
-from tsfcst.predict_best_weights_with_model import load_predicted_weights
-from tsfcst.time_series import TsData
+from tsfcst.predict_weights_rates import load_predicted
 from tsfcst.utils_tsfcst import plot_fcsts_and_actual
 
 
@@ -30,9 +26,22 @@ def get_data(id_fcsts, id_weights):
     df_actual = df_actual.rename({'first_day_of_month': 'date'})
 
     log.debug('loading forecasts')
-    dir_fcsts = f'{config.DIR_ARTIFACTS}/forecast_ensemble'
-    df_fcsts = pl.read_csv(f'{dir_fcsts}/{id_fcsts}/fcsts_all_models.csv', parse_dates=True)\
-        .with_columns(pl.col('cfips').cast(pl.Int32))
+    dir_fcsts = f'{config.DIR_ARTIFACTS}/forecast_ensemble/{id_fcsts}'
+    file_fcsts = f'{dir_fcsts}/fcsts_all_models.csv'
+    if os.path.exists(file_fcsts):
+        df_fcsts = pl.read_csv(file_fcsts, parse_dates=True)
+    else:
+        # load submission
+        if len(glob.glob(f'{dir_fcsts}/sub*.csv')) == 1:
+            file_submission = glob.glob(f'{dir_fcsts}/sub*.csv')
+            df_fcsts = pl.read_csv(file_submission[0]).rename({'microbusiness_density': 'submission'})
+            df_fcsts = df_fcsts \
+                .with_columns(pl.col('row_id').str.split('_').alias('row_id'))\
+                .with_columns(pl.col('row_id').arr.get(0).cast(pl.Int64).alias('cfips'))\
+                .with_columns(pl.col('row_id').arr.get(1).str.strptime(pl.Date, fmt='%Y-%m-%d').alias('date'))
+            df_fcsts = df_fcsts.join(df_pop.rename({'first_day_of_month': 'date'}), on=['cfips', 'date'])\
+                .select(['cfips', 'date', 'submission', 'population'])\
+                .sort(['cfips', 'date'])
 
     log.debug('loading best weights')
     log.debug('try loading data frame with weights per cfips')
@@ -40,7 +49,7 @@ def get_data(id_fcsts, id_weights):
         df_weights = load_best_weights(id_weights)
     except ValueError as e:
         try:
-            df_weights = load_predicted_weights(id_weights)
+            df_weights = load_predicted(id_weights)
         except Exception as e:
             df_weights = None
 
@@ -88,7 +97,7 @@ tab1, tab2 = st.tabs(['Plot forecasts', 'Details'])
 df_actual_cfips = df_actual.filter(pl.col('cfips') == cfips).rename({target_name: 'actual'}).select(['date', 'actual'])
 df_fcsts_cfips = df_fcsts.filter(pl.col('cfips') == cfips).drop('cfips')
 
-models = [m for m in ['ma', 'naive', 'theta', 'hw', 'ensemble'] if m in df_fcsts_cfips.columns]
+models = [m for m in ['ma', 'naive', 'driftr', 'theta', 'hw', 'ensemble', 'submission'] if m in df_fcsts_cfips.columns]
 if target_name == 'active':
     for m in models:
         df_fcsts_cfips = df_fcsts_cfips.with_columns((pl.col(m)/100 * pl.col('population')).alias(m))
@@ -97,16 +106,16 @@ fig_fcsts = plot_fcsts_and_actual(
     df_actual=df_actual_cfips.to_pandas(),
     df_fcsts=df_fcsts_cfips.select(['date'] + models).to_pandas(),
     target_name='actual',
-    colors={'naive': 'orange', 'ma': 'brown', 'theta': 'blue', 'hw': 'darkblue', 'ensemble': 'red'}
+    colors={'naive': 'orange', 'ma': 'brown', 'driftr': 'green', 'theta': 'blue', 'hw': 'darkblue', 'ensemble': 'red'}
 )
-
-df_weights_cfips = df_weights.filter(pl.col('cfips') == cfips)
 
 with tab1:
     st.plotly_chart(fig_fcsts)
 
 with tab2:
-    st.table(df_weights_cfips.to_pandas())
+    if df_weights is not None:
+        df_weights_cfips = df_weights.filter(pl.col('cfips') == cfips)
+        st.table(df_weights_cfips.to_pandas())
 
 
 # streamlit run app_check_fcsts.py --server.port 8002

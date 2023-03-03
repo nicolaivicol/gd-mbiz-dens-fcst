@@ -344,7 +344,7 @@ class ParamsFinder:
             showlegend=False,
         )
 
-        if len(df) == 0:
+        if df is None or len(df) == 0:
             return go.Figure(data=[], layout=layout)
 
         df = df.sort_values(['importance'], ascending=True)

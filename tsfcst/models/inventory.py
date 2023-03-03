@@ -6,6 +6,7 @@ from tsfcst.models.naive import NaiveModel
 from tsfcst.models.arima import ArimaModel
 from tsfcst.models.ets import ETSsmModel
 from tsfcst.models.drift import DriftModel
+from tsfcst.models.driftr import DriftExogRatesModel
 
 MODELS = {
     'naive': NaiveModel,
@@ -13,6 +14,7 @@ MODELS = {
     'ema': ExponentialMovingAverageModel,
     'sma': SimpleMovingAverageModel,
     'drift': DriftModel,
+    'driftr': DriftExogRatesModel,
     'theta': ThetaSmModel,
     'ets': ETSsmModel,
     'hw': HoltWintersSmModel,

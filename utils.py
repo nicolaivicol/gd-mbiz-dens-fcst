@@ -194,7 +194,7 @@ def plot_forecast_in_out(self):
     # py.plot(fig)
 
 
-def plot_multiple_cfips(df, measure='microbusiness_density', title=None, max_n=25, height=config.HEIGHT_PLOT_MEDIUM):
+def plot_multiple_cfips(df, measure='microbusiness_density', title=None, max_n=30, height=config.HEIGHT_PLOT_MEDIUM):
     fig = go.Figure()
 
     if title is None:
@@ -305,7 +305,7 @@ def plot_aggregated_cfips_microbiz_dens(df):
 
 
 def plot_aggregated_cfips_active(df):
-    return plot_aggregated_cfips(df, measure='active')
+    return plot_aggregated_cfips(df, measure='active', mid='sum', include_hi_lo=False, height=config.HEIGHT_PLOT_MEDIUM)
 
 
 def plot_aggregated_cfips_population(df):
@@ -316,13 +316,13 @@ def make_plots_cfips(df_train, state):
     if config.MAKE_PLOTS:
         return
 
-    plot_multiple_cfips_microbiz_dens(df_train.filter(pl.col('state') == state))
+    # plot_multiple_cfips_microbiz_dens(df_train.filter(pl.col('state') == state))
     plot_multiple_cfips_active(df_train.filter(pl.col('state') == state))
-    plot_multiple_cfips_population(df_train.filter(pl.col('state') == state))
+    # plot_multiple_cfips_population(df_train.filter(pl.col('state') == state))
 
-    plot_aggregated_cfips_microbiz_dens(df_train.filter(pl.col('state') == state))
+    # plot_aggregated_cfips_microbiz_dens(df_train.filter(pl.col('state') == state))
     plot_aggregated_cfips_active(df_train.filter(pl.col('state') == state))
-    plot_aggregated_cfips_population(df_train.filter(pl.col('state') == state))
+    # plot_aggregated_cfips_population(df_train.filter(pl.col('state') == state))
 
 
 def get_stats(values, by, sub_na_with=None):

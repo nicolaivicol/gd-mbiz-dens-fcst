@@ -7,12 +7,15 @@ import json
 import numpy as np
 import pandas as pd
 import polars as pl
+import glob
 
 import config
 from etl import load_data, get_df_ts_by_cfips
+from tsfcst.find_best_weights import load_best_weights
 from tsfcst.time_series import TsData
 from tsfcst.utils_tsfcst import get_feats, chowtest
 from utils import set_display_options, describe_numeric
+from tsfcst.models.inventory import MODELS
 
 
 log = logging.getLogger(os.path.basename(__file__))
@@ -53,7 +56,7 @@ if __name__ == '__main__':
     os.makedirs(dir_out, exist_ok=True)
 
     # load data
-    df_train, _, _, _ = load_data()
+    df_train, df_test, df_census, df_pop = load_data()
     if asofdate is not None:
         df_train = df_train.filter(pl.col('first_day_of_month') <= pl.lit(asofdate).str.strptime(pl.Date, fmt='%Y-%m-%d'))
     list_cfips = sorted(np.unique(df_train['cfips']))
@@ -74,9 +77,69 @@ if __name__ == '__main__':
         list_feats.append(feats)
 
     df_feats = pl.from_records(list_feats)
+
+    # join state
+    df_states_enc = df_train.select(['state']).unique().sort('state') \
+        .with_columns(pl.lit(1).alias('state_ordid')) \
+        .with_columns(pl.cumsum('state_ordid'))
+    df_cfips_states_enc = df_train.select(['cfips', 'state']).unique() \
+        .join(df_states_enc, on='state') \
+        .select(['cfips', 'state', 'state_ordid'])
+    df_feats = df_feats.join(df_cfips_states_enc, on='cfips', how='left')
+
+    # join census data
+    df_census = df_census.with_columns([
+        (pl.col('pct_bb_2021') / pl.col('pct_bb_2020').clip_min(0.00001) - 1).clip_min(-9.99).clip_max(9.99).alias('pct_bb_2021_yoy'),
+        (pl.col('pct_college_2021') / pl.col('pct_college_2020').clip_min(0.00001) - 1).clip_min(-9.99).clip_max(9.99).alias('pct_college_2021_yoy'),
+        (pl.col('pct_foreign_born_2021') / pl.col('pct_foreign_born_2020').clip_min(0.00001) - 1).clip_min(-9.99).clip_max(9.99).alias('pct_foreign_born_2021_yoy'),
+        (pl.col('pct_it_workers_2021') / pl.col('pct_it_workers_2020').clip_min(0.00001) - 1).clip_min(-9.99).clip_max(9.99).alias('pct_it_workers_2021_yoy'),
+        (pl.col('median_hh_inc_2021') / pl.col('median_hh_inc_2020').clip_min(0.00001) - 1).clip_min(-9.99).clip_max(9.99).alias('median_hh_inc_2021_yoy'),
+    ])
+    cols_census = [
+        'cfips',
+        'pct_bb_2021', 'pct_college_2021', 'pct_foreign_born_2021', 'pct_it_workers_2021', 'median_hh_inc_2021',
+        'pct_bb_2021_yoy', 'pct_college_2021_yoy', 'pct_foreign_born_2021_yoy', 'pct_it_workers_2021_yoy', 'median_hh_inc_2021_yoy',
+    ]
+    df_census = df_census.select(cols_census)
+    df_feats = df_feats.join(df_census, on='cfips', how='left')
+
+    # join best theta of state
+    map_aod_bestparams_theta_state = {
+        '2022-07-01': 'active-state-20220701-theta-test-tld-100-0_02',
+        '2022-12-01': 'active-state-20221201-theta-full-tld-100-0_02',
+    }
+    id_best_params_theta_state = map_aod_bestparams_theta_state.get(asofdate, None)
+    assert id_best_params_theta_state is not None
+    dir_best_params = f'{config.DIR_ARTIFACTS}/find_best_params/{id_best_params_theta_state}'
+    files_best_params = sorted(glob.glob(f'{dir_best_params}/*.csv'))
+    df_theta = pl.concat([pl.read_csv(f) for f in files_best_params]) \
+        .select(['state', 'theta']) \
+        .rename({'theta': 'theta_state'})
+    df_feats = df_feats.join(df_theta, on='state', how='left')
+
+    # join weights and cross-validation errors
+    map_aod_id_weights_cv = {
+        '2022-07-01': 'active-feats-naive_ema_theta-corner-20220701-no-manual_fix',
+        '2022-12-01': 'active-feats-naive_ema_theta-corner-20221201-no-manual_fix',
+    }
+    id_weights_cv = map_aod_id_weights_cv.get(asofdate, None)
+    assert id_weights_cv is not None
+    df_weights_cv = load_best_weights(id_weights_cv)
+
+    benchmark = 'naive'
+    for m in MODELS.keys():
+        if m not in df_weights_cv.columns or m == benchmark:
+            continue
+        df_weights_cv = df_weights_cv \
+            .with_columns((pl.col(f'smape_{m}') - pl.col(f'smape_{benchmark}'))
+                          .alias(f'diff_smape_{m}_{benchmark}'))
+
+    map_weights_cv_names = {c: f'val_{c}' for c in df_weights_cv.columns if c != 'cfips'}
+    df_weights_cv = df_weights_cv.rename(map_weights_cv_names).sort('cfips')
+    df_feats = df_feats.join(df_weights_cv, on='cfips')
+
     df_feats.write_csv(f'{dir_out}/feats.csv', float_precision=4)
 
-    df_feats = df_feats.to_pandas()
-    log.debug('\n' + str(describe_numeric(df_feats)))
+    log.debug(f'{len(df_feats.columns) - 1} features created')
     log.debug('\n' + str(df_feats.head()))
-
+    log.debug('\n' + str(describe_numeric(df_feats.to_pandas())))

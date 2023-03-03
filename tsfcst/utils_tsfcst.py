@@ -125,6 +125,7 @@ def plotly_add_time_slider(fig, visible=True):
 
 
 def plot_fcsts_and_actual(df_actual, df_fcsts, time_name='date', target_name='value', freq='MS', colors=None):
+    df_fcsts = df_fcsts[[time_name] + [c for c in df_fcsts.columns if c not in ['population', 'cfips', 'date', 'actual']]]
     df_idx = pd.DataFrame({time_name: pd.date_range(np.min(df_actual[time_name]), np.max(df_actual[time_name]), freq=freq)})
     df_actual = pd.merge(df_idx, df_actual, how='outer', on=[time_name]).fillna(0)
     df = pd.merge(df_fcsts, df_actual, how='outer', on=[time_name]).sort_values(by=[time_name])
@@ -202,10 +203,33 @@ def last_n_from_x(x, last_n=None) -> np.ndarray:
     return x
 
 
-def prc_diffs(x):
-    prc_diffs = np.diff(x) / np.maximum(x[:-1], 0.001)
-    prc_diffs = np.maximum(np.minimum(0.9999, prc_diffs), -0.9999)
-    return prc_diffs * 100
+def rate_diffs(x, lo=-0.9999, hi=0.9999):
+    r_diffs = np.diff(x) / np.maximum(np.abs(x[:-1]), 0.0001)
+    r_diffs = np.maximum(np.minimum(hi, r_diffs), lo)
+    return r_diffs
+
+
+def diffs(x, last_n=None):
+    x = last_n_from_x(x, last_n)
+    return np.diff(x)
+
+
+def rate_diffs_prc(x, lo=-0.9999, hi=0.9999):
+    return rate_diffs(x, lo, hi) * 100
+
+
+def sd_prc_diffs(x, last_n=None):
+    x = last_n_from_x(x, last_n)
+    prc_diffs_ = rate_diffs_prc(x)
+    sd = np.nanstd(prc_diffs_)
+    return sd
+
+
+def avg_prc_diffs(x, last_n=None):
+    x = last_n_from_x(x, last_n)
+    prc_diffs_ = rate_diffs_prc(x)
+    avg = np.nanmean(prc_diffs_)
+    return avg
 
 
 def prc_zeros(x, last_n=None):
@@ -230,12 +254,12 @@ def sd_m_ratio(x, last_n=None):
 
 def prc_change_lte(x, small, last_n=None):
     x = last_n_from_x(x, last_n)
-    return np.mean(np.abs(prc_diffs(x)) <= small)
+    return np.mean(np.abs(rate_diffs_prc(x)) <= small)
 
 
 def mean_prc_change(x, last_n=None):
     x = last_n_from_x(x, last_n)
-    return np.mean(prc_diffs(x))
+    return np.mean(rate_diffs_prc(x))
 
 
 def smape_wrt_avg(x, last_n=None):
@@ -360,8 +384,12 @@ def get_hurst(x, lag_size: int = 12) -> float:
     return poly[0] if not np.isnan(poly[0]) else 0
 
 
-def trunc_num_values_in_dict_to_min_max(dict_, min_val=-99999, max_val=99999):
+def trunc_num_values_in_dict_to_min_max(dict_, min_val=-99999, max_val=99999, skip=None):
+    if skip is None:
+        skip = []
     for k, v in dict_.items():
+        if k in skip:
+            continue
         try:
             dict_[k] = max(min_val, min(max_val, np.round(v, 3)))
         except:
@@ -374,12 +402,27 @@ def get_feats(x, min_val=-9999, max_val=9999):
     lin_reg_summary_ = get_lin_reg_summary(x)
     lin_reg_summary_10 = get_lin_reg_summary(x, 10)
     feats = {
+        'last_obs': x[-1],
+        'avg_5': avg(x, 5),
         'avg': avg(x),
+        'last_prc': avg_prc_diffs(x, 2),
+        'avg_prc_5': avg_prc_diffs(x, 5),
+        'avg_prc_10': avg_prc_diffs(x, 10),
+        'avg_prc': avg_prc_diffs(x),
+        'sd_prc': sd_prc_diffs(x),
+        'sd_prc_5': sd_prc_diffs(x, 5),
+        'sd_prc_10': sd_prc_diffs(x, 10),
+        'sd_prc_18': sd_prc_diffs(x, 18),
         'smape2avg': smape_wrt_avg(x),
         'smape2avg_3': smape_wrt_avg(x, 3),
         'smape2avg_5': smape_wrt_avg(x, 5),
         'smape2avg_10': smape_wrt_avg(x, 10),
         'smape2avg_20': smape_wrt_avg(x, 20),
+        'ratio_diff_lte5_5': prc_lte(diffs(x), small=5, last_n=5),
+        'ratio_diff_lte10_5': prc_lte(diffs(x), small=10, last_n=5),
+        'ratio_diff_lte5_10': prc_lte(diffs(x), small=5, last_n=10),
+        'ratio_diff_lte10_10': prc_lte(diffs(x), small=10, last_n=10),
+        'ratio_diff_lte50_10': prc_lte(diffs(x), small=50, last_n=10),
         'iqr_m_ratio': iqr_m_ratio(x),
         'iqr_m_ratio_5': iqr_m_ratio(x, last_n=5),
         'iqr_m_ratio_10': iqr_m_ratio(x, last_n=10),
@@ -414,8 +457,7 @@ def get_feats(x, min_val=-9999, max_val=9999):
         'hurst_5': get_hurst(x, 5),
         'hurst_10': get_hurst(x, 10),
     }
-    feats = trunc_num_values_in_dict_to_min_max(feats, min_val, max_val)
-    feats['avg'] = avg(x)  # do not truncate
+    feats = trunc_num_values_in_dict_to_min_max(feats, min_val, max_val, ['avg', 'avg_5', 'last_obs'])
     return feats
 
 

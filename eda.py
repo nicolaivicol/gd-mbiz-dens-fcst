@@ -83,7 +83,7 @@ config.MAKE_PLOTS = True
 '''
 
 # %%
-df_train, df_test, df_census = load_data()
+df_train, df_test, df_census, df_pop = load_data()
 # %%
 
 # %%
@@ -100,7 +100,8 @@ df_train, df_test, df_census = load_data()
     to the pace of update provided by the U.S. Census Bureau, which provides the underlying population data annually. 
     2021 density figures are calculated using 2019 population figures, etc. Not provided for the test set.
 - `active` - The raw count of microbusinesses in the county. Not provided for the test set.
-- `population` - The population of the county, implied from `active` and `microbusiness_density`. Not provided for the test set.
+- `population` - The population of the county, implied from `active` and `microbusiness_density`. 
+    It is provided for the test set.
 '''
 
 # %%
@@ -113,7 +114,7 @@ display(df_train.describe().to_pandas())
 - `row_id` - An ID code for the row.
 - `cfips` - A unique identifier for each county using the Federal Information Processing System. 
     The first two digits correspond to the state FIPS code, while the following 3 represent the county.
-    However there is an error in CFIPS, the leading zero is missing for some counties, where state starst with 0.
+    However there is an error in CFIPS, the leading zero is missing for some counties, where state starts with 0.
     These CFIPS have 4 digits instead of 5.
 - `first_day_of_month` - The date of the first day of the month.
 '''
@@ -263,8 +264,18 @@ display_months(df_test)
 # %%
 '''
 <a id="plots"></a>
-## Plot CFIPS for selected states - `microbusiness_density` and `active`
+## Plot CFIPS for selected states (`active`)
 '''
+
+# %%
+'''
+<a id="plots_us"></a>
+### US - aggregate
+'''
+
+# %%
+fig = plot_aggregated_cfips(df_train, title='US', measure='active', mid='sum', include_hi_lo=False, height=config.HEIGHT_PLOT_HIGH)
+py.iplot(fig)
 
 # %%
 '''
@@ -274,6 +285,24 @@ display_months(df_test)
 
 # %%
 make_plots_cfips(df_train, 'Alabama')
+
+# %%
+'''
+<a id="plots_arizona"></a>
+### Arizona
+'''
+
+# %%
+make_plots_cfips(df_train, 'Arizona')
+
+# %%
+'''
+<a id="plots_arkansas"></a>
+### Arkansas
+'''
+
+# %%
+make_plots_cfips(df_train, 'Arkansas')
 
 # %%
 '''

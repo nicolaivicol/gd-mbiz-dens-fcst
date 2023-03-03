@@ -44,8 +44,7 @@ def load_best_weights(weights_id, model_names = None, normalize=True):
     files_best_weights = glob.glob(f'{dir_best_weights}/*.csv')
     if len(files_best_weights) == 0:
         raise ValueError(f'files not found in {dir_best_weights}')
-    df_best_weights = pl.concat([pl.read_csv(f) for f in files_best_weights])\
-        .with_columns(pl.col('cfips').cast(pl.Int32))
+    df_best_weights = pl.concat([pl.read_csv(f) for f in files_best_weights])
 
     # normalize to have sum of weights = 1:
     if normalize:
@@ -123,8 +122,6 @@ if __name__ == '__main__':
         df_fcsts = df_fcsts.filter(pl.col('date') >= pl.lit(fromdate).str.strptime(pl.Date, fmt='%Y-%m-%d'))
 
     log.debug('count of dates: \n' + str(df_fcsts.select(['cfips', 'date']).groupby(['cfips']).count().describe()))
-
-    df_fcsts = df_fcsts.with_columns(pl.col('cfips').cast(pl.Int32))
 
     # load actual data
     df_actual, _, _, _ = load_data()

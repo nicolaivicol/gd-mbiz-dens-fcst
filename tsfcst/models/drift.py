@@ -1,6 +1,6 @@
 import numpy as np
 from tsfcst.models.abstract_model import TsModel
-from tsfcst.utils_tsfcst import last_n_from_x, prc_diffs
+from tsfcst.utils_tsfcst import last_n_from_x, rate_diffs
 
 
 class DriftModel(TsModel):
@@ -19,12 +19,13 @@ class DriftModel(TsModel):
             self.hist_rate = 0
         else:
             last_n_obs = last_n_from_x(self.data.target)
-            self.hist_rate = np.nanmean(prc_diffs(last_n_obs) / 100)
+            self.hist_rate = np.nanmean(rate_diffs(last_n_obs))
             if np.isnan(self.hist_rate):
                 self.hist_rate = 0
 
     def _predict(self, steps):
-        mults = np.array([1 + self.hist_rate * n for n in range(1, steps+1)])
+        mults = np.array([1 + self.hist_rate * n for n in range(1, steps+1)])  # additive model
+        print(mults)
         return self.last_value * mults
 
     def _fitted_values(self):

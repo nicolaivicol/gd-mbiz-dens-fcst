@@ -18,13 +18,17 @@ df_train, _, _, _ = load_data()
 dir_fcsts = f'{config.DIR_ARTIFACTS}/forecast_ensemble'
 
 fcsts_to_compare = {
+    'test-w': 'active-weight-test-active-naive_ema_theta-find_best_corner-20221201-20220701',
     'naive': 'active-naive-naive-20220701',
-    # 'ma': 'active-ma-ma-20220701',
     'sma': 'active-sma-ma-20220701',
     'ema': 'active-ema-ma-20220701',
     'drift': 'active-drift-drift-20220701',
-    # 'theta': 'active-theta-theta-20220701',
+    'driftr-ws_1': 'model-driftr-wstate_1-driftr-20220701-active-single-driftr',
+    'driftr-wct_1': 'model-driftr-wcountry_1-driftr-20220701-active-single-driftr',
+    'driftr-ws_050-wct_050': 'active-drift-wavg-drift-w_s-050-w_ct_50-20220701',
+    'driftr-s050_wct050_m150': 'model-driftr-s050_wct050_m150-driftr-20220701-active-single-driftr',
     'theta': 'active-theta-v2-theta-20220701',
+    'theta-reg-0.02': 'active-theta-r0_02-weighted_average-theta-20220701',
     'theta-reg-0.25': 'active-theta-025-theta-20220701',
     'theta-reg-1': 'active-theta-reg-1-theta-20220701',
     'hw': 'active-hw-hw-20220701',
@@ -33,7 +37,6 @@ fcsts_to_compare = {
     'hw-level': 'active-hw-level-hw-20220701',
     'avg_naive_theta': 'active-avg_naive_theta-avg_naive_theta-20220701',
     'cv-w': 'active-weight-cv-active-naive_ema_theta-find_best_corner-20220701-20220701',
-    'test-w': 'active-weight-test-active-naive_ema_theta-find_best_corner-20221201-20220701',
     'model-w': 'active-lgbm-naive-ma-theta-folds_5-active-20220701-active-naive_ema_theta-find_best_corner-20221201-20220701',
     'model-sq-w': 'active-lgbm-bin-sq-naive-ma-theta-folds_5-active-20220701-active-naive_ema_theta-find_best_corner-20221201-20220701',
     'lgbm-bin-naive-ma-h025-theta-h025': 'active-lgbm-bin-naive-ma-h025-theta-h025-lgbm-bin-naive-ma-h025-theta-h025-folds_5-active-20220701-active-naive_ema_theta-find_best_corner-20221201-20220701',
@@ -41,13 +44,14 @@ fcsts_to_compare = {
     'lgbm-bin-naive-theta-h035': 'active-ens-lgbm-bin-naive-theta-h035-folds_5-active-20220701-active-naive_ema_theta-find_best_corner-20221201-20220701',
     'lgbm-bin-naive-theta-h040': 'active-ens-lgbm-bin-naive-theta-h040-folds_5-active-20220701-active-naive_ema_theta-find_best_corner-20221201-20220701',
     'lgbm-bin-naive-ma-h040-theta-h040': 'active-ens-lgbm-bin-naive-ma-h040-theta-h040-folds_5-active-20220701-active-naive_ema_theta-find_best_corner-20221201-20220701',
+    'median-naive-ma-theta': 'active-ens-median-lgbm-bin-naive-theta-h040-folds_1-active-20220701-active-test-naive_ema_theta-find_best_corner-20221201-20220701',
+    'max-naive-ma-theta': 'active-ens-maximum-lgbm-bin-naive-theta-h040-folds_1-active-20220701-active-test-naive_ema_theta-find_best_corner-20221201-20220701',
 }
 
 df_smapes = None
 
 for name_fcst, run_id in fcsts_to_compare.items():
-    df_fcsts = pl.read_csv(f'{dir_fcsts}/{run_id}/fcsts_all_models.csv', parse_dates=True)\
-        .with_columns(pl.col('cfips').cast(pl.Int32))
+    df_fcsts = pl.read_csv(f'{dir_fcsts}/{run_id}/fcsts_all_models.csv', parse_dates=True)
 
     df_fcst = df_train \
         .select(['cfips', 'first_day_of_month', 'microbusiness_density']) \
@@ -108,9 +112,12 @@ log.info('\n' + str(summary_))
 # naive gives 1.0939
 
 # LB (after the release of new data)
+# 1.5924 - ens, max (naive, ma, theta)
 # 1.4633 - naive
+# 1.4544 - ens, naive + theta (h>0.40), weights by lgbm
+# 1.422  - ens, driftr(wc-050 wct-050) + theta (h>0.40), weights by lgbm
+# 1.42   - driftr(wc-050 wct-050)
 
-# local:
 #                                      count      mean       std      min       5%       25%       50%       75%       95%       98%       99%       max
 # cfips                             3135.000 30376.038 15145.863 1001.000 5096.400 18178.000 29173.000 45076.000 53063.600 55063.640 55124.320 56045.000
 # naive                             3135.000     2.442     4.431    0.000    0.318     0.735     1.356     2.655     7.376    11.996    18.889   112.475
@@ -118,6 +125,7 @@ log.info('\n' + str(summary_))
 # ema                               3135.000     2.906     5.915    0.000    0.339     0.797     1.516     3.111     8.803    14.869    22.739   171.487
 # drift                             3135.000     2.621     4.556    0.000    0.332     0.784     1.499     2.906     7.778    12.316    19.198   116.907
 # theta                             3135.000     2.682     4.761    0.000    0.342     0.796     1.514     2.939     7.661    12.783    19.347   115.187
+# theta-reg-0.02                    3135.000     2.655     4.810    0.000    0.330     0.770     1.474     2.894     7.581    12.903    19.493   115.188
 # theta-reg-0.25                    3135.000     2.648     5.910    0.000    0.330     0.738     1.437     2.797     7.420    13.136    19.493   200.000
 # theta-reg-1                       3135.000     2.596     5.797    0.000    0.331     0.736     1.405     2.749     7.482    12.577    19.494   200.000
 # hw                                3135.000     4.345     6.308    0.000    0.494     1.344     2.661     4.980    13.004    21.129    27.362   104.368
@@ -134,3 +142,6 @@ log.info('\n' + str(summary_))
 # lgbm-bin-naive-theta-h035         3135.000     2.438     4.441    0.000    0.314     0.709     1.353     2.671     7.326    11.968    18.889   113.555
 # lgbm-bin-naive-theta-h040         3135.000     2.434     4.437    0.000    0.314     0.723     1.350     2.655     7.376    11.996    18.889   113.555
 # lgbm-bin-naive-ma-h040-theta-h040 3135.000     2.435     4.438    0.000    0.314     0.723     1.347     2.647     7.376    11.996    18.889   113.555
+# median-naive-ma-theta             3135.000     2.481     4.566    0.000    0.333     0.739     1.387     2.690     7.293    11.996    18.933   112.475
+# max-naive-ma-theta                3135.000     2.738     5.582    0.000    0.333     0.787     1.487     2.955     7.863    13.420    21.545   171.487
+# driftr                            3135.000     2.565     4.422    0.082    0.370     0.834     1.507     2.830     7.385    12.181    18.834   112.817

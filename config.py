@@ -84,3 +84,6 @@ SEARCH_ARGS_DICT = {
         'damp': False
     }
 }
+# alias
+SEARCH_ARGS_DICT['tld'] = SEARCH_ARGS_DICT['trend_level_damp']
+SEARCH_ARGS_DICT['l'] = SEARCH_ARGS_DICT['level']
