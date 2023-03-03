@@ -11,6 +11,7 @@ import glob
 import config
 from etl import load_data
 from tsfcst.weights_finder import WeightsFinder
+from tsfcst.models.inventory import MODELS
 
 
 log = logging.getLogger(os.path.basename(__file__))
@@ -19,16 +20,18 @@ log = logging.getLogger(os.path.basename(__file__))
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--target_name', default='active', help='active, microbusiness_density')
-    parser.add_argument('-g', '--tag', default='full-naive_ema_theta', help='options: cv, test, full')
-    parser.add_argument('-a', '--asofdate', default='2022-12-01')
+    parser.add_argument('-g', '--tag', default='cv', help='options: cv, test, full')
+    parser.add_argument('-a', '--asofdate', default='2022-07-01')
     parser.add_argument('-f', '--fromdate', default='no')
-    parser.add_argument('-m', '--method', default='find_best', help='options: find_best, find_from_errors, find_best_corner')
-    parser.add_argument('-n', '--ntrials', default=200, type=int)
+    parser.add_argument('-m', '--method', default='best', help='best, errors, corner')
+    parser.add_argument('-n', '--ntrials', default=100, type=int)
     # sources of forecasts on validation / test folds
-    parser.add_argument('-i', '--naive', default='active-20221201-naive-full-trend_level_damp-1-0_0')  # active-20220701-naive-test-level-1-0_0
-    parser.add_argument('-o', '--ma', default='active-20221201-ema-full-trend_level_damp-20-0_0')  # active-20220701-ema-test-trend_level_damp-25-0_0
-    parser.add_argument('-e', '--theta', default='active-20221201-theta-full-trend_level_damp-50-0_0')  # active-20220701-theta-test-trend_level_damp-50-0_0
-    parser.add_argument('-w', '--hw', default='')
+    parser.add_argument('-i', '--naive')   #, default='active-20221201-naive-full-trend_level_damp-1-0_0')  # active-20220701-naive-test-level-1-0_0
+    parser.add_argument('-o', '--ma')      #, default='active-20221201-ema-full-trend_level_damp-20-0_0')  # active-20220701-ema-test-trend_level_damp-25-0_0
+    parser.add_argument('-k', '--ema')
+    parser.add_argument('-d', '--driftr')
+    parser.add_argument('-e', '--theta')   #, default='active-20221201-theta-full-trend_level_damp-50-0_0')  # active-20220701-theta-test-trend_level_damp-50-0_0
+    parser.add_argument('-w', '--hw')      #, default='')
     # partition
     parser.add_argument('-p', '--part', type=int)
     parser.add_argument('-x', '--nparts', type=int)
@@ -41,12 +44,13 @@ def load_best_weights(weights_id, model_names = None, normalize=True):
     files_best_weights = glob.glob(f'{dir_best_weights}/*.csv')
     if len(files_best_weights) == 0:
         raise ValueError(f'files not found in {dir_best_weights}')
-    df_best_weights = pl.concat([pl.read_csv(f) for f in files_best_weights])
+    df_best_weights = pl.concat([pl.read_csv(f) for f in files_best_weights])\
+        .with_columns(pl.col('cfips').cast(pl.Int32))
 
     # normalize to have sum of weights = 1:
     if normalize:
         if model_names is None:
-            model_names = [m for m in df_best_weights.columns if m in ['naive', 'ma', 'theta', 'hw']]
+            model_names = [m for m in df_best_weights.columns if m in MODELS.keys()]
         df_best_weights = df_best_weights.with_columns(pl.sum(model_names).alias('sum_weights'))
         for model_name in model_names:
             df_best_weights = df_best_weights.with_columns(pl.col(model_name) / pl.col('sum_weights'))
@@ -58,11 +62,19 @@ def load_best_weights(weights_id, model_names = None, normalize=True):
 if __name__ == '__main__':
     args = parse_args()
 
-    # python -m tsfcst.find_best_weights -t active -g naive_ema_theta -a 2022-12-01 -f 2022-08-01 -m find_best_corner -n 0
-
     log.info(f'Running {os.path.basename(__file__)} with parameters: \n'
              + json.dumps(vars(args), indent=2))
     log.info('This finds best weights to apply when ensembling the models: naive, ma, theta, hw.')
+
+    allowed_model_names = ['naive', 'ma', 'ema', 'drift', 'driftr', 'theta', 'hw']
+    dict_models_id_run = {}
+    for m in allowed_model_names:
+        id_m = vars(args).get(m, None)
+        if id_m is not None and id_m not in ['', ' ', 'no', 'none', 'x']:
+            dict_models_id_run[m] = id_m
+    model_names = list(dict_models_id_run.keys())
+    assert len(model_names) > 0
+    log.debug(f"model_names={', '.join(model_names)}")
 
     target_name = args.target_name
     tag = args.tag
@@ -72,10 +84,8 @@ if __name__ == '__main__':
     method = args.method
     part = args.part
     nparts = args.nparts
-    dict_models_id_run = {'naive': args.naive, 'ma': args.ma, 'theta': args.theta}  #  'hw': args.hw
-    model_names = list(dict_models_id_run.keys())
 
-    id_run = f"{target_name}-{tag}-{method}-{asofdate.replace('-', '')}"
+    id_run = f"{target_name}-{tag}-{'_'.join(model_names)}-{method}-{asofdate.replace('-', '')}-{fromdate.replace('-', '')}"
     dir_out = f'{config.DIR_ARTIFACTS}/{Path(__file__).stem}/{id_run}'
     os.makedirs(dir_out, exist_ok=True)
 
@@ -109,7 +119,7 @@ if __name__ == '__main__':
     if asofdate is not None:
         df_fcsts = df_fcsts.filter(pl.col('date') <= pl.lit(asofdate).str.strptime(pl.Date, fmt='%Y-%m-%d'))
 
-    if fromdate is not None and fromdate.lower() not in ['none', 'null', 'na', '', 'nan', 'no']:
+    if fromdate is not None and fromdate.lower() not in ['none', 'null', 'na', '', 'nan', 'no', 'x']:
         df_fcsts = df_fcsts.filter(pl.col('date') >= pl.lit(fromdate).str.strptime(pl.Date, fmt='%Y-%m-%d'))
 
     log.debug('count of dates: \n' + str(df_fcsts.select(['cfips', 'date']).groupby(['cfips']).count().describe()))
@@ -144,11 +154,11 @@ if __name__ == '__main__':
         WeightsFinder.y_preds = df_cfips[model_names].to_numpy()
         WeightsFinder.model_names = model_names
 
-        if method == 'find_best':
+        if method in ['find_best', 'best']:
             res = WeightsFinder.find_best(n_trials=ntrials)
-        elif method == 'find_from_errors':
+        elif method in ['find_from_errors', 'errors']:
             res = WeightsFinder.find_from_errors()
-        elif method == 'find_best_corner':
+        elif method in ['find_best_corner', 'corner']:
             res = WeightsFinder.find_best_corner()
         else:
             raise ValueError(f'method={method} is not supported')
@@ -176,3 +186,57 @@ if __name__ == '__main__':
         file_out = file_out.replace('.csv', f'-{part}-{nparts}.csv')
 
     df_res.write_csv(file_out, float_precision=4)
+
+
+# EXAMPLES:
+# ------------------------------------------------------------------------------
+# for features for learning: find best weights on CV folds
+"""
+./tsfcst/find_best_weights.sh \
+-t active \
+-g feats \
+-a 2022-07-01 \
+-f no \
+-m corner \
+-n 0 \
+-i active-cfips-20220701-naive-test-tld-1-0_0 \
+-o no \
+-k active-cfips-20220701-ema-test-tld-20-0_0 \
+-d no \
+-e active-cfips-20220701-theta-test-tld-50-0_02 \
+-w no
+"""
+
+# for target for learning: find best weights on the test fold
+"""
+./tsfcst/find_best_weights.sh \
+-t active \
+-g target \
+-a 2022-12-01 \
+-f 2022-08-01 \
+-m corner \
+-n 0 \
+-i active-cfips-20220701-naive-test-tld-1-0_0 \
+-o no \
+-k active-cfips-20220701-ema-test-tld-20-0_0 \
+-d no \
+-e active-cfips-20220701-theta-test-tld-50-0_02 \
+-w no
+"""
+
+# for features for inference: find best weights on CV folds
+"""
+./tsfcst/find_best_weights.sh \
+-t active \
+-g feats \
+-a 2022-12-01 \
+-f no \
+-m corner \
+-n 0 \
+-i active-cfips-20221201-naive-full-tld-1-0_0 \
+-o no \
+-k active-cfips-20221201-ema-full-tld-20-0_0 \
+-d no \
+-e active-cfips-20221201-theta-full-tld-50-0_02 \
+-w no
+"""
