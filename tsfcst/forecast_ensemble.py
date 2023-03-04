@@ -82,21 +82,21 @@ if __name__ == '__main__':
     args = parse_args()
 
     # example for single model
-    args.tag = 'model-driftr-wc1_bestpublic_locf'
-    args.asofdate = '2022-12-01'
-    args.ensmethod = 'single'
-    args.weights = 'driftr'
-    args.driftr = 'active-cfips-20221201-driftr-full-tld-1-0_0-wc1_bestpublic'
+    # args.tag = 'model-driftr-wc1_bestpublic_locf'
+    # args.asofdate = '2022-12-01'
+    # args.ensmethod = 'single'
+    # args.weights = 'driftr'
+    # args.driftr = 'active-cfips-20221201-driftr-full-tld-1-0_0-wc1_bestpublic'
 
     # for submission:
-    # args.target = 'active'
-    # args.tag = 'ens-driftr-theta'
-    # args.asofdate = '2022-12-01'
-    # args.naive = 'active-cfips-20221201-driftr-full-trend_level_damp-1-0_0'
-    # args.ma = 'active-20221201-ema-full-trend_level_damp-20-0_0'
-    # args.theta = 'active-20221201-theta-full-trend_level_damp-50-0_0'
-    # args.ensmethod = 'wavg'
-    # args.weights = 'lgbm-bin-naive-theta-h040-folds_1-active-20220701-active-test-naive_ema_theta-find_best_corner-20221201'
+    args.target = 'active'
+    args.tag = 'ens'
+    args.asofdate = '2022-12-01'
+    args.naive = 'active-cfips-20221201-naive-full-tld-1-0_0'
+    # args.ema = 'active-cfips-20221201-ema-full-tld-20-0_0'
+    args.theta = 'active-cfips-20221201-theta-full-tld-50-0_02'
+    args.ensmethod = 'max'
+    args.weights = 'no' # 'full-weight-folds_1-active-20220701-active-target-naive_ema_theta-corner-20221201-20220801-manual_fix'
 
     log.info(f'Running {os.path.basename(__file__)} with parameters: \n'
              + json.dumps(vars(args), indent=2))
@@ -135,7 +135,7 @@ if __name__ == '__main__':
     log.debug('loading best params')
     dict_df_best_params = {}
     for model_name_, id_best_params in dict_best_params_run_id.items():
-        df_best_params = load_best_params(id_run, selected_trials)
+        df_best_params = load_best_params(id_best_params, selected_trials)
         dict_df_best_params[model_name_] = df_best_params
 
     log.debug('try loading data frame with weights per cfips')
@@ -177,10 +177,10 @@ if __name__ == '__main__':
 
         ens = Ensemble(data=ts, fcster_configs=best_cfgs, method=ensmethod, weights=best_weights)
         fcst = ens.forecast(periodsahead)
-        fcst = fcst.with_columns(pl.lit(cfips).alias('cfips'))
+        fcst = fcst.with_columns(pl.lit(cfips).cast(pl.Int64).alias('cfips'))
         list_fcsts.append(fcst)
 
-    df_fcsts = pl.concat(list_fcsts)
+    df_fcsts = pl.concat(list_fcsts).with_columns(pl.col('cfips'))
 
     if target_name == 'active':
         df_fcsts = df_fcsts.join(df_pop.rename({'first_day_of_month': 'date'}), on=['cfips', 'date'], how='left')

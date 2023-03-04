@@ -72,7 +72,7 @@ class Ensemble:
             raise ValueError(f'method={method} not recognized')
 
     def _set_weights(self, weights: Dict[str, float], method: str):
-        if method == 'weighted_average':
+        if method in ['weighted_average', 'wavg']:
             return {name_: weights[name_] for name_ in self.fcster_configs.keys()}
         else:
             return {name_: np.NaN for name_ in self.fcster_configs.keys()}

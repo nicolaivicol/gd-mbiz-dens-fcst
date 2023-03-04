@@ -33,7 +33,7 @@ PARAMS_LGBM = {
     'colsample_bynode': 0.50,
     'subsample': 0.33,  # aka bagging_fraction
     # 'bagging_freq': 1,
-    'min_child_samples': 100,  # aka min_data_in_leaf
+    'min_child_samples': 50,  # aka min_data_in_leaf
     'importance_type': 'gain',
     # 'lambda_l2': 99.5,
     'seed': 42,

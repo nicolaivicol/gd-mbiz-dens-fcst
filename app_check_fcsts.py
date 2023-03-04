@@ -97,7 +97,8 @@ tab1, tab2 = st.tabs(['Plot forecasts', 'Details'])
 df_actual_cfips = df_actual.filter(pl.col('cfips') == cfips).rename({target_name: 'actual'}).select(['date', 'actual'])
 df_fcsts_cfips = df_fcsts.filter(pl.col('cfips') == cfips).drop('cfips')
 
-models = [m for m in ['ma', 'naive', 'driftr', 'theta', 'hw', 'ensemble', 'submission'] if m in df_fcsts_cfips.columns]
+models = [m for m in ['ma', 'ema', 'naive', 'driftr', 'theta', 'hw', 'ensemble', 'submission']
+          if m in df_fcsts_cfips.columns]
 if target_name == 'active':
     for m in models:
         df_fcsts_cfips = df_fcsts_cfips.with_columns((pl.col(m)/100 * pl.col('population')).alias(m))
@@ -106,7 +107,8 @@ fig_fcsts = plot_fcsts_and_actual(
     df_actual=df_actual_cfips.to_pandas(),
     df_fcsts=df_fcsts_cfips.select(['date'] + models).to_pandas(),
     target_name='actual',
-    colors={'naive': 'orange', 'ma': 'brown', 'driftr': 'green', 'theta': 'blue', 'hw': 'darkblue', 'ensemble': 'red'}
+    colors={'naive': 'orange', 'ma': 'brown', 'ema': 'coral',
+            'driftr': 'green', 'theta': 'blue', 'hw': 'darkblue', 'ensemble': 'red'}
 )
 
 with tab1:
