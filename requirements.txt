@@ -3,7 +3,7 @@ numpy
 pandas
 scipy
 scikit-learn==1.2
-lightgbm==3.3.4
+lightgbm==3.3.5
 boto3
 tqdm
 more-itertools
@@ -24,7 +24,8 @@ optuna
 boruta
 deepchecks
 h5py
-prophet
+cmdstanpy
+# prophet==1.0.1
 statsmodels
 streamlit
 papermill

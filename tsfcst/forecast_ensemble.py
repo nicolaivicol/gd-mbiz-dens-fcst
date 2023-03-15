@@ -51,7 +51,7 @@ def gen_submission():
     assert all(df_submission['microbusiness_density'] >= 0)
 
     file_submission = f"{dir_out}/{get_submit_file_name(f'sub-ens-{id_run}', tag=config.VERSION)}.csv"
-    df_submission.write_csv(file_submission, float_precision=4)
+    df_submission.write_csv(file_submission, float_precision=5)
     log.info(f'submission saved to {file_submission}')
 
 
@@ -82,21 +82,33 @@ if __name__ == '__main__':
     args = parse_args()
 
     # example for single model
-    # args.tag = 'model-driftr-wc1_bestpublic_locf'
-    # args.asofdate = '2022-12-01'
-    # args.ensmethod = 'single'
-    # args.weights = 'driftr'
-    # args.driftr = 'active-cfips-20221201-driftr-full-tld-1-0_0-wc1_bestpublic'
+    args.tag = 'model-driftr-lgbm_bestpub_comb_v5_adj2pub_damp_add001'
+    args.asofdate = '2022-12-01'
+    args.ensmethod = 'single'
+    args.weights = 'driftr'
+    args.driftr = 'active-cfips-20221201-driftr-full-tld-1-0_0-wc1'
+    to_round = True
 
     # for submission:
-    args.target = 'active'
-    args.tag = 'ens'
-    args.asofdate = '2022-12-01'
-    args.naive = 'active-cfips-20221201-naive-full-tld-1-0_0'
+    # args.target = 'active'
+    # args.tag = 'ens'
+    # args.asofdate = '2022-12-01'
+    # args.naive = 'active-cfips-20221201-naive-full-tld-1-0_0'
     # args.ema = 'active-cfips-20221201-ema-full-tld-20-0_0'
-    args.theta = 'active-cfips-20221201-theta-full-tld-50-0_02'
-    args.ensmethod = 'max'
-    args.weights = 'no' # 'full-weight-folds_1-active-20220701-active-target-naive_ema_theta-corner-20221201-20220801-manual_fix'
+    # args.theta = 'active-cfips-20221201-theta-full-tld-50-0_02'
+    # args.ensmethod = 'wavg'
+    # args.weights = 'full-weight-folds_1-active-20221201-active-target-naive_ema_theta-corner-20221201-20220801-manual_fix'
+    # to_round = False
+
+    # for test:
+    # args.target = 'active'
+    # args.tag = 'ens'
+    # args.asofdate = '2022-07-01'
+    # args.naive = 'active-cfips-20220701-naive-test-tld-1-0_0'
+    # args.ema = 'active-cfips-20220701-ema-test-tld-20-0_0'
+    # args.theta = 'active-cfips-20220701-theta-test-tld-50-0_02'
+    # args.ensmethod = 'wavg'
+    # args.weights = 'test-weight-folds_5-active-20220701-active-target-naive_ema_theta-corner-20221201-20220801-manual_fix'
 
     log.info(f'Running {os.path.basename(__file__)} with parameters: \n'
              + json.dumps(vars(args), indent=2))
@@ -143,9 +155,12 @@ if __name__ == '__main__':
         df_best_weights = load_best_weights(weights_name)
     except ValueError as e:
         try:
-            df_best_weights = load_predicted(weights_name)
+            df_best_weights = load_predicted(weights_name, 'predict_weights_rates-overriden')
         except Exception as e:
-            df_best_weights = None
+            try:
+                df_best_weights = load_predicted(weights_name)
+            except Exception as e:
+                df_best_weights = None
 
     best_weights = map_best_weights.get(weights_name, None)
 
@@ -185,6 +200,8 @@ if __name__ == '__main__':
     if target_name == 'active':
         df_fcsts = df_fcsts.join(df_pop.rename({'first_day_of_month': 'date'}), on=['cfips', 'date'], how='left')
         for name in (model_names + ['ensemble']):
+            if to_round:
+                df_fcsts = df_fcsts.with_columns(pl.col(name).round(0).alias(name))
             df_fcsts = df_fcsts.with_columns((pl.col(name) / pl.col('population') * 100).alias(name))
 
     file_fcsts = f'{dir_out}/fcsts_all_models.csv'

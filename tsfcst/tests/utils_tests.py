@@ -42,8 +42,9 @@ class TestModel(unittest.TestCase):
         ts_out.data = ts_out.data.iloc[-n_out:, ]
         self.n_out, self.ts_in, self.ts_out = n_out, ts_in, ts_out
 
-    def general(self, model_class, th_mape=0.10):
-        m = model_class(self.ts_in, params={})
+    def general(self, model_class, th_mape=0.10, params=None):
+        params = {} if params is None else params
+        m = model_class(self.ts_in, params=params)
         m.fit()
         f = m.predict(self.n_out)
         assert self.ts_in.data['date'].max() < f.data['date'].min()

@@ -27,6 +27,7 @@ fcsts_to_compare = {
     'driftr-wct_1': 'model-driftr-wcountry_1-driftr-20220701-active-single-driftr',
     'driftr-ws_050-wct_050': 'active-drift-wavg-drift-w_s-050-w_ct_50-20220701',
     'driftr-s050_wct050_m150': 'model-driftr-s050_wct050_m150-driftr-20220701-active-single-driftr',
+    'driftr-pred-r': 'model-driftr-lgbm-driftr-20220701-active-single-driftr',
     'theta': 'active-theta-v2-theta-20220701',
     'theta-reg-0.02': 'active-theta-r0_02-weighted_average-theta-20220701',
     'theta-reg-0.25': 'active-theta-025-theta-20220701',
@@ -46,6 +47,7 @@ fcsts_to_compare = {
     'lgbm-bin-naive-ma-h040-theta-h040': 'active-ens-lgbm-bin-naive-ma-h040-theta-h040-folds_5-active-20220701-active-naive_ema_theta-find_best_corner-20221201-20220701',
     'median-naive-ma-theta': 'active-ens-median-lgbm-bin-naive-theta-h040-folds_1-active-20220701-active-test-naive_ema_theta-find_best_corner-20221201-20220701',
     'max-naive-ma-theta': 'active-ens-maximum-lgbm-bin-naive-theta-h040-folds_1-active-20220701-active-test-naive_ema_theta-find_best_corner-20221201-20220701',
+    'lgbm-naive-ema-theta-overriden': 'ens-naive_ema_theta-20220701-active-wavg-test-weight-folds_5-active-20220701-active-target-naive_ema_theta-corner-20221201-20220801-manual_fix',
 }
 
 df_smapes = None

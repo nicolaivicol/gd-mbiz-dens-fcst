@@ -130,6 +130,6 @@ df.write_csv(f'{dir_out}/{weights_alias}.csv', float_precision=4)
 
 # distribution by model:
 #                     naive    ma  theta
-# feats-cv-learn:      0.28  0.23   0.49
-# target-test-learn:   0.55  0.11   0.34
-# feats-cv-pred:       0.36  0.18   0.46
+# feats-cv-learn:      0.40  0.16   0.44
+# target-test-learn:   0.62  0.08   0.30
+# feats-cv-pred:       0.45  0.15   0.40

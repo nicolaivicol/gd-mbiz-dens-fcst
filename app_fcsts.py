@@ -18,19 +18,19 @@ log = logging.getLogger(os.path.basename(__file__))
 st.set_page_config(layout="wide", page_title='Forecasting microbusiness density')
 
 
-@st.cache(allow_output_mutation=True)
+@st.cache_resource()
 def get_data():
     log.debug('Loading local data files')
     df_train, df_test, df_census, df_pop = load_data()
     return df_train
 
 
-@st.cache(allow_output_mutation=True)
+@st.cache_resource()
 def history_selections():
     return []
 
 
-@st.cache(allow_output_mutation=True)
+@st.cache_resource()
 def history_selections_state():
     return ['']
 

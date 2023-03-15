@@ -40,9 +40,9 @@ def add_common_args(parser):
     parser.add_argument('-m', '--model', default='theta', help='ma, ema, theta, hw, prophet')
     parser.add_argument('-c', '--cvargs', default='full', help='options: test, full')
     parser.add_argument('-s', '--searchargs', default='tld')
-    parser.add_argument('-n', '--ntrials', default=100, type=int)
-    parser.add_argument('-r', '--regcoef', default=0.0, type=float)
-    parser.add_argument('-a', '--asofdate', default='2022-07-01')
+    parser.add_argument('-n', '--ntrials', default=50, type=int)
+    parser.add_argument('-r', '--regcoef', default=0.02, type=float)
+    parser.add_argument('-a', '--asofdate', default='2022-12-01')
     parser.add_argument('-g', '--tag', default='')
     return parser
 

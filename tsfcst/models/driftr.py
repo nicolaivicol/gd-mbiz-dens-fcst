@@ -2,7 +2,6 @@ import numpy as np
 import polars as pl
 from tsfcst.models.abstract_model import TsModel
 import config
-from tsfcst.utils_tsfcst import last_n_from_x, rate_diffs
 
 
 class DriftExogRatesModel(TsModel):
@@ -11,7 +10,15 @@ class DriftExogRatesModel(TsModel):
     """
     max_periods = 12  # maximum forecast periods to have rates for
     df_rates_state_country = pl.read_csv(f'{config.DIR_ARTIFACTS}/get_growth_rates/rates-theta.csv')
-    df_rates_county = pl.read_csv(f'{config.DIR_ARTIFACTS}/get_rates_submission/rates-best-public-submission.csv')
+    # df_rates_county = pl.read_csv(f'{config.DIR_ARTIFACTS}/get_rates_submission/best_public.csv')
+
+    # files_pred = [
+    #     f'{config.DIR_ARTIFACTS}/predict_weights_rates/test-rate-folds_5-active-20220701-rates_target_20220701/predicted.csv',
+    #     f'{config.DIR_ARTIFACTS}/predict_weights_rates/full-rate-folds_1-active-20221201-rates_target_20220701/predicted.csv'
+    # ]
+    # df_rates_county = pl.concat([pl.read_csv(f) for f in files_pred]).rename({'rate': 'rate_county'})
+
+    df_rates_county = pl.read_csv(f'{config.DIR_ARTIFACTS}/combine_rates/pub_ens_adj2pub_050_damp_090.csv').rename({'rate': 'rate_county'})
 
     def __init__(self, data, params, **kwargs):
         super().__init__(data, params)
@@ -63,15 +70,15 @@ class DriftExogRatesModel(TsModel):
         self.rates_state = self.propagate_rates(rates_state, max_periods)
         self.rates_country = self.propagate_rates(rates_country, max_periods)
 
+        a = self.params['add_rate']
         m = self.params['mult_rate']
         w_c = self.params['weight_county']
         w_s = self.params['weight_state']
         w_ct = self.params['weight_country']
-        self.rates = m * (w_c * self.rates_county + w_s * self.rates_state + w_ct * self.rates_country)
+        self.rates = a + m * (w_c * self.rates_county + w_s * self.rates_state + w_ct * self.rates_country)
 
     def _predict(self, steps):
         assert steps <= DriftExogRatesModel.max_periods
-        # 1001, 2023-01-01: 3.3341 = (1 + 0.004481) * 1475 / 44438.0 * 100   ? why 3.3394
         pred = self.last_value * (1 + self.rates[:steps])
         return pred
 
@@ -83,6 +90,7 @@ class DriftExogRatesModel(TsModel):
         return {
             'cfips': None,  # 1001,
             'asofdate': None,  # '2022-12-01',
+            'add_rate': 0.000,
             'mult_rate': 1.0,
             'weight_county': 1.0,
             'weight_state': 0.0,
@@ -93,6 +101,7 @@ class DriftExogRatesModel(TsModel):
     @staticmethod
     def trial_params(trend=None, seasonal=None, multiplicative=None, level=None, damp=None):
         params_trial = [
+            dict(name='add_rate', type='float', low=0.0, high=0.01, step=0.01),
             dict(name='mult_rate', type='float', low=1.00, high=1.01, step=0.10),
             dict(name='weight_county', type='float', low=1.00, high=1.01, step=0.10),
             dict(name='weight_state', type='float', low=0.0, high=0.01, step=0.10),
@@ -103,7 +112,9 @@ class DriftExogRatesModel(TsModel):
     @staticmethod
     def trial_params_full():
         return [
+            dict(name='add_rate', type='float', low=0.0, high=0.05, step=0.0025),
             dict(name='mult_rate', type='float', low=0.0, high=1, step=0.10),
+            dict(name='weight_county', type='float', low=0.0, high=1, step=0.10),
             dict(name='weight_state', type='float', low=0.0, high=1, step=0.10),
             dict(name='weight_country', type='float', low=0.0, high=1, step=0.10),
         ]

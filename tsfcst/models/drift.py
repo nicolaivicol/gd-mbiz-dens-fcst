@@ -25,7 +25,6 @@ class DriftModel(TsModel):
 
     def _predict(self, steps):
         mults = np.array([1 + self.hist_rate * n for n in range(1, steps+1)])  # additive model
-        print(mults)
         return self.last_value * mults
 
     def _fitted_values(self):

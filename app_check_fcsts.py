@@ -5,6 +5,7 @@ import random
 import logging
 import polars as pl
 import glob
+import json
 
 import config
 from etl import load_data
@@ -18,7 +19,7 @@ log = logging.getLogger(os.path.basename(__file__))
 st.set_page_config(layout="wide", page_title='Check Forecasts')
 
 
-@st.cache(allow_output_mutation=True)
+@st.cache_data()
 def get_data(id_fcsts, id_weights):
     log.debug('Loading local data files')
     log.debug('loading actual')
@@ -42,6 +43,8 @@ def get_data(id_fcsts, id_weights):
             df_fcsts = df_fcsts.join(df_pop.rename({'first_day_of_month': 'date'}), on=['cfips', 'date'])\
                 .select(['cfips', 'date', 'submission', 'population'])\
                 .sort(['cfips', 'date'])
+        else:
+            df_fcsts = None
 
     log.debug('loading best weights')
     log.debug('try loading data frame with weights per cfips')
@@ -49,14 +52,17 @@ def get_data(id_fcsts, id_weights):
         df_weights = load_best_weights(id_weights)
     except ValueError as e:
         try:
-            df_weights = load_predicted(id_weights)
+            df_weights = load_predicted(id_weights, 'predict_weights_rates-overriden')
         except Exception as e:
-            df_weights = None
+            try:
+                df_weights = load_predicted(id_weights, 'predict_weights_rates')
+            except:
+                df_weights = None
 
     return df_actual, df_fcsts, df_weights
 
 
-@st.cache(allow_output_mutation=True)
+@st.cache_resource()
 def history_selections():
     return []
 
@@ -64,8 +70,14 @@ def history_selections():
 st.sidebar.title("Control Panel")
 
 with st.sidebar.expander('data sources:'):
-    id_fcsts = st.text_input(label='id_fcsts:', value='active-naive-naive-20221201')
-    id_weights = st.text_input(label='id_weights:', value='lgbm-bin-naive-ma-h025-theta-h025-folds_5-active-20220701-active-naive_ema_theta-find_best_corner-20221201')
+    id_fcsts = st.text_input(
+        label='id_fcsts:',
+        value='model-driftr-lgbm_bestpub_comb-driftr-20221201-active-single-driftr'
+    )
+    id_weights = st.text_input(
+        label='id_weights:',
+        value='full-weight-folds_1-active-20221201-active-target-naive_ema_theta-corner-20221201-20220801-manual_fix'
+    )
 
 df_actual, df_fcsts, df_weights = get_data(id_fcsts, id_weights)
 hs = history_selections()
@@ -73,9 +85,11 @@ hs = history_selections()
 if 'count' not in st.session_state:
     st.session_state.rand_i = 0
 
+placeholder_selectbox_cfips = st.sidebar.empty()
 list_cfips = sorted(list(np.unique(df_fcsts['cfips'])))
 cfips_to_select = ([hs[-1]] if len(hs) > 0 else []) + list_cfips
-cfips = int(st.sidebar.selectbox('Select county (by CFIPS):', cfips_to_select))
+# cfips = int(st.sidebar.selectbox('Select county (by CFIPS):', cfips_to_select))
+cfips = placeholder_selectbox_cfips.selectbox('Select county (by CFIPS):', cfips_to_select)
 
 select_random = st.sidebar.checkbox('select random', value=True)
 
@@ -87,6 +101,20 @@ if st.sidebar.button('Select next / random'):
 
     cfips = list_cfips[i]
     hs.append(cfips)
+    cfips_to_select.insert(0, cfips)
+    cfips = placeholder_selectbox_cfips.selectbox('Select county (by CFIPS):', cfips_to_select)
+
+if st.sidebar.button('Add to trend'):
+    try:
+        with open(f'{config.DIR_ARTIFACTS}/app_check_fcsts/trend.json', 'r') as fp:
+            ids_trend = json.load(fp)
+    except:
+        ids_trend = []
+
+    if cfips not in ids_trend:
+        ids_trend.append(int(cfips))
+        with open(f'{config.DIR_ARTIFACTS}/app_check_fcsts/trend.json', 'w') as fp:
+            json.dump(sorted(ids_trend), fp, indent=2)
 
 st.sidebar.text(f'selected cfips: {cfips}')
 
@@ -123,3 +151,5 @@ with tab2:
 # streamlit run app_check_fcsts.py --server.port 8002
 
 # weights for 30031?
+
+# last checked: 27057

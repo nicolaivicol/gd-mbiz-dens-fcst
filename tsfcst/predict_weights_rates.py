@@ -10,6 +10,7 @@ import pandas as pd
 import lightgbm
 from typing import List, Dict, Union
 from sklearn.metrics import r2_score, mean_absolute_error, roc_auc_score
+from datetime import date
 
 import config
 from tsfcst.find_best_weights import load_best_weights
@@ -22,7 +23,7 @@ log = logging.getLogger(os.path.basename(__file__))
 
 # LightGBM
 PARAMS_LGBM = {
-    'objective': 'regression',  # 'huber', 'binary', # 'regression',  # 'cross_entropy',
+    'objective': 'huber',  # 'huber', 'binary', # 'regression',  # 'cross_entropy',
     'boosting_type': 'gbdt',
     # 'metric': 'auc',
     'n_estimators': 1200,
@@ -53,8 +54,8 @@ PARAMS_LGBM_BY_TARGET = {
 }
 
 
-def load_predicted(id_prediction):
-    dir_pred_weights = f'{config.DIR_ARTIFACTS}/predict_weights_rates/{id_prediction}'
+def load_predicted(id_prediction, folder='predict_weights_rates'):
+    dir_pred_weights = f'{config.DIR_ARTIFACTS}/{folder}/{id_prediction}'
     df_weights = pl.read_csv(f'{dir_pred_weights}/predicted.csv')
     return df_weights
 
@@ -88,10 +89,27 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
 
-    # to get weights for submission (uncomment):
-    args.tag = 'full'
-    args.feats_full = 'active-20221201'
-    args.nfolds = 1  # use folds=1 for submission
+    # to get weights for submission:
+    # args.tag = 'full'
+    # args.feats = 'active-20220701'
+    # args.target_type = 'weight'
+    # args.targets = 'active-target-naive_ema_theta-corner-20221201-20220801-manual_fix'
+    # args.feats_full = 'active-20221201'
+    # args.nfolds = 1  # use folds=1 for submission
+
+    # to get weights for test:
+    args.tag = 'test'
+    args.feats = 'active-20220701'
+    args.target_type = 'weight'
+    args.targets = 'active-target-naive_ema_theta-corner-20221201-20220801-manual_fix'
+    args.nfolds = 5  # use folds=1 for submission
+
+    # to forecast growth rates
+    # args.tag = 'full'
+    # args.target_type = 'rate'
+    # args.targets = 'rates_target_20220701'
+    # args.feats_full = 'active-20221201'
+    # args.nfolds = 1
 
     log.info(f'Running {os.path.basename(__file__)} with parameters: \n'
              + json.dumps(vars(args), indent=2))
@@ -99,7 +117,8 @@ if __name__ == '__main__':
 
     n_folds = args.nfolds
 
-    id_run = f"{args.tag}-{args.target_type}-folds_{n_folds}-{args.feats}-{args.targets}"
+    f = args.feats_full if args.feats_full is not None else args.feats
+    id_run = f"{args.tag}-{args.target_type}-folds_{n_folds}-{f}-{args.targets}"
     dir_out = f'{config.DIR_ARTIFACTS}/{Path(__file__).stem}/{id_run}'
     os.makedirs(dir_out, exist_ok=True)
 
@@ -109,6 +128,15 @@ if __name__ == '__main__':
 
     try:
         df_feats_out = load_feats(args.feats_full)
+        if args.target_type == 'rate':
+            df_tmp = pl.DataFrame({
+                'asofdate': date(2022, 12, 1),
+                'date': pl.date_range(date(2023, 1, 1), date(2023, 6, 1), "1mo"),
+                'horizon': [1, 2, 3, 4, 5, 6],
+                'key': 1,
+            })
+            df_tmp = df_tmp.join(pl.DataFrame({'key': 1, 'cfips': df_feats_out['cfips']}), on='key').drop('key')
+            df_feats_out = df_feats_out.join(df_tmp, on='cfips')
     except:
         df_feats_out = None
 
@@ -118,7 +146,9 @@ if __name__ == '__main__':
         df_targets = load_best_weights(args.targets)
     elif args.target_type == 'rate':
         possible_target_names = ['rate']
-        df_targets = None
+        df_targets = pl.read_csv(f'{config.DIR_ARTIFACTS}/get_rates_target/{args.targets}.csv')
+        df_targets = df_targets.with_columns(pl.col('rate').clip_min(-0.025).clip_max(0.025))
+        feature_names.append('horizon')
     else:
         raise ValueError(f'args.target_type={args.target_type} not recognized')
 
@@ -132,10 +162,16 @@ if __name__ == '__main__':
     list_models = {}
 
     for target_name in target_names:
-        df = df_targets.select(['cfips', target_name]).rename({target_name: 'y'})
+        cols_join_target = ['cfips', target_name]
+        if args.target_type == 'rate':
+            cols_join_target.extend(['asofdate', 'date', 'horizon'])
+        df = df_targets.select(cols_join_target).rename({target_name: 'y'})
         df = df.join(df_feats, on='cfips')
-        df_folds = pl.DataFrame({'fold': np.repeat(range(1, n_folds + 1), np.ceil(len(df)/n_folds))[:len(df)]})
-        df = pl.concat([df, df_folds], how='horizontal')
+        df_cfips = df.select(['cfips']).unique().sort('cfips')
+        n_cfips = len(df_cfips)
+        df_folds = pl.DataFrame({'fold': np.repeat(range(1, n_folds + 1), np.ceil(n_cfips/n_folds))[:n_cfips]})
+        df_folds = pl.concat([df_cfips, df_folds], how='horizontal')
+        df = df.join(df_folds, on='cfips', how='left')
 
         list_preds_folds = []
 
@@ -184,9 +220,15 @@ if __name__ == '__main__':
                 'r_sq_valid': r2_score(y_valid, pred_y_valid),
                 'mae_train': mean_absolute_error(y_train, pred_y_train),
                 'mae_valid': mean_absolute_error(y_valid, pred_y_valid),
-                'auc_train': roc_auc_score(y_train, pred_y_train),
-                'auc_valid': roc_auc_score(y_valid, pred_y_valid),
             }
+
+            if args.target_type == 'weight':
+                res['auc_train'] = roc_auc_score(y_train, pred_y_train)
+                res['auc_valid'] = roc_auc_score(y_valid, pred_y_valid)
+            else:
+                res['auc_train'] = np.NaN
+                res['auc_valid'] = np.NaN
+
             res = {**res, **params_lgbm_, **PARAMS_LGBM_FIT}
 
             df_feat_imp = feature_importance_lgbm(lgbm, feature_names)
@@ -194,7 +236,13 @@ if __name__ == '__main__':
             df_feat_imp['fold'] = i_fold
             df_feat_imp = pl.from_pandas(df_feat_imp)
 
-            df_pred = pl.DataFrame({'cfips': df_valid['cfips'], target_name: pred_y_valid})
+            if args.target_type == 'rate':
+                df_pred = pl.concat(
+                    [df_valid.select(['cfips', 'asofdate', 'date', 'horizon']),
+                     pl.DataFrame({target_name: pred_y_valid})],
+                    how='horizontal')
+            else:
+                df_pred = pl.DataFrame({'cfips': df_valid['cfips'], target_name: pred_y_valid})
 
             list_res.append(res)
             list_feat_imps.append(df_feat_imp)
@@ -208,7 +256,14 @@ if __name__ == '__main__':
                 pred_y_out = lgbm.predict_proba(X_out)[:, 1]
             else:
                 pred_y_out = lgbm.predict(X_out)
-            df_pred_model = pl.DataFrame({'cfips': df_feats_out['cfips'], target_name: pred_y_out})
+
+            if args.target_type == 'rate':
+                df_pred_model = pl.concat(
+                    [df_feats_out.select(['cfips', 'asofdate', 'date', 'horizon']),
+                     pl.DataFrame({target_name: pred_y_out})],
+                    how='horizontal')
+            else:
+                df_pred_model = pl.DataFrame({'cfips': df_feats_out['cfips'], target_name: pred_y_out})
 
         list_preds.append(df_pred_model)
 
@@ -267,85 +322,161 @@ if __name__ == '__main__':
 
     print('summary results on 5 folds:: \n', agg.to_pandas())
     print('average prediction by model: \n', df_predicted.mean().to_pandas())
+    if args.target_type == 'rate':
+        list_stats = []
+        for h in range(1, 7):
+            stats = describe_numeric(df_predicted.filter(pl.col('horizon')==h).select(['rate']).to_pandas())
+            stats['horizon'] = h
+            list_stats.append(stats)
+        stats = pd.concat(list_stats)
+        print(stats)
     print('sample: \n', df_predicted.head(10).to_pandas())
 
-
-# summary results on 5 folds:
+# summary for weights:
+# *********************************************************************************************************************
 #    target_name  r_sq_valid  mae_valid  auc_valid  best_iteration  n_estimators  learning_rate  max_depth  num_leaves
-# 0         ema       0.300      0.148      0.915         800.000       800.000          0.005      3.000       8.000
-# 1       naive       0.309      0.361      0.820         800.000       800.000          0.005      3.000       8.000
-# 2       theta       0.382      0.291      0.857         800.000       800.000          0.005      3.000       8.000
-
+# 0         ema       0.177      0.118      0.888         779.600       800.000          0.005      3.000       8.000
+# 1       naive       0.299      0.340      0.823         800.000       800.000          0.005      3.000       8.000
+# 2       theta       0.342      0.287      0.857         800.000       800.000          0.005      3.000       8.000
 # average prediction by model:
 #        cfips  naive   ema  theta
-# 0 30376.038  0.548 0.109  0.343
-
+# 0 30376.038  0.641 0.074  0.285
 # sample:
 #     cfips  naive   ema  theta
-# 0   1001  0.403 0.006  0.590
-# 1   1003  0.124 0.000  0.876
-# 2   1005  0.469 0.059  0.472
-# 3   1007  0.668 0.200  0.131
-# 4   1009  0.437 0.041  0.522
-# 5   1011  0.687 0.245  0.068
-# 6   1013  0.419 0.243  0.338
-# 7   1015  0.871 0.010  0.118
-# 8   1017  0.599 0.008  0.393
-# 9   1019  0.563 0.263  0.175
+# 0   1001  0.480 0.020  0.501
+# 1   1003  0.450 0.034  0.515
+# 2   1005  0.528 0.032  0.440
+# 3   1007  0.591 0.320  0.089
+# 4   1009  0.498 0.035  0.467
+# 5   1011  0.988 0.012  0.000
+# 6   1013  0.600 0.029  0.371
+# 7   1015  0.524 0.039  0.436
+# 8   1017  0.605 0.245  0.150
+# 9   1019  0.864 0.036  0.100
 
-# target=naive | feature imp:
+# target=naive | feature imp (top 25):
 #     target_name                     feature  importance
-# 0        naive               val_par_theta       0.162
-# 1        naive                   val_naive       0.152
-# 2        naive  val_diff_smape_theta_naive       0.086
-# 3        naive                   val_theta       0.046
-# 4        naive         ratio_diff_lte10_10       0.037
-# 5        naive                       avg_5       0.034
-# 6        naive                    last_obs       0.030
-# 7        naive         ratio_diff_lte50_10       0.030
-# 8        naive                         avg       0.028
-# 9        naive          val_par_window_ema       0.028
-# 10       naive          ratio_diff_lte5_10       0.027
-# 11       naive          ratio_diff_lte10_5       0.026
-# 12       naive    val_diff_smape_ema_naive       0.026
-# 13       naive                     val_ema       0.025
-# 14       naive                  q_trend_10       0.024
-# 15       naive                   q_trend_5       0.020
+# 0        naive                   val_naive       0.107
+# 1        naive               val_par_theta       0.091
+# 2        naive                       avg_5       0.073
+# 3        naive                    last_obs       0.073
+# 4        naive  val_diff_smape_theta_naive       0.057
+# 5        naive                   val_theta       0.055
+# 6        naive         ratio_diff_lte10_10       0.046
+# 7        naive                         avg       0.041
+# 8        naive          ratio_diff_lte10_5       0.038
+# 9        naive            prc_not_small_10       0.036
+# 10       naive         ratio_diff_lte50_10       0.026
+# 11       naive               prc_not_small       0.025
+# 12       naive                  q_trend_10       0.022
+# 13       naive                   sd_prc_18       0.019
+# 14       naive          ratio_diff_lte5_10       0.015
+# 15       naive                      sd_prc       0.015
+# 16       naive                   sd_prc_10       0.015
+# 17       naive                   q_trend_5       0.013
+# 18       naive    val_diff_smape_ema_naive       0.013
+# 19       naive          val_par_window_ema       0.013
+# 20       naive                   q_trend_1       0.012
+# 21       naive                smape2avg_20       0.011
+# 22       naive            prc_change_lte_0       0.009
+# 23       naive           ratio_diff_lte5_5       0.009
+# 24       naive       pct_foreign_born_2021       0.008
+# target=ema | feature imp (top 25):
+#     target_name                     feature  importance
+# 0          ema          val_par_window_ema       0.189
+# 1          ema    val_diff_smape_ema_naive       0.186
+# 2          ema                     val_ema       0.091
+# 3          ema                    last_obs       0.033
+# 4          ema                       avg_5       0.030
+# 5          ema                   val_naive       0.026
+# 6          ema                 smape2avg_5       0.025
+# 7          ema                         avg       0.021
+# 8          ema            prc_not_small_10       0.020
+# 9          ema               prc_not_small       0.020
+# 10         ema                  p_value_10       0.020
+# 11         ema                  q_trend_10       0.016
+# 12         ema                   val_theta       0.016
+# 13         ema                     r_sq_10       0.015
+# 14         ema                 smape2avg_3       0.015
+# 15         ema                smape2avg_10       0.014
+# 16         ema                      sd_prc       0.011
+# 17         ema                smape2avg_20       0.011
+# 18         ema  val_diff_smape_theta_naive       0.010
+# 19         ema                     avg_prc       0.010
+# 20         ema                   q_trend_5       0.009
+# 21         ema                    last_prc       0.009
+# 22         ema               val_par_theta       0.008
+# 23         ema                    sd_prc_5       0.008
+# 24         ema             pct_bb_2021_yoy       0.007
+# target=theta | feature imp (top 25):
+#     target_name                     feature  importance
+# 0        theta                   val_theta       0.131
+# 1        theta               val_par_theta       0.112
+# 2        theta         ratio_diff_lte10_10       0.067
+# 3        theta                    last_obs       0.065
+# 4        theta  val_diff_smape_theta_naive       0.063
+# 5        theta                       avg_5       0.060
+# 6        theta          ratio_diff_lte10_5       0.055
+# 7        theta                         avg       0.040
+# 8        theta         ratio_diff_lte50_10       0.032
+# 9        theta          ratio_diff_lte5_10       0.031
+# 10       theta                   q_trend_5       0.023
+# 11       theta                   val_naive       0.023
+# 12       theta                   q_trend_1       0.020
+# 13       theta                   sd_prc_18       0.018
+# 14       theta           ratio_diff_lte5_5       0.018
+# 15       theta            prc_not_small_10       0.015
+# 16       theta                   sd_prc_10       0.015
+# 17       theta                  q_trend_10       0.014
+# 18       theta                      sd_prc       0.013
+# 19       theta               prc_not_small       0.012
+# 20       theta                  p_value_10       0.009
+# 21       theta                        r_sq       0.009
+# 22       theta            prc_change_lte_0       0.008
+# 23       theta    val_diff_smape_ema_naive       0.007
+# 24       theta         prc_change_lte_0_10       0.007
 
-# target=ema | feature imp:
-#     target_name                     feature  importance
-# 0          ema          val_par_window_ema       0.210
-# 1          ema    val_diff_smape_ema_naive       0.196
-# 2          ema                     val_ema       0.158
-# 3          ema                   val_naive       0.038
-# 4          ema                  q_trend_10       0.024
-# 5          ema                     r_sq_10       0.022
-# 6          ema                  p_value_10       0.021
-# 7          ema                 smape2avg_3       0.020
-# 8          ema                   val_theta       0.017
-# 9          ema                 smape2avg_5       0.016
-# 10         ema                  avg_prc_10       0.016
-# 11         ema                       slope       0.014
-# 12         ema         ratio_diff_lte10_10       0.013
-# 13         ema          ratio_diff_lte10_5       0.012
-# 14         ema                   q_trend_5       0.012
-# 15         ema          ratio_diff_lte5_10       0.010
+# rate
+# **********************************************************************************************************************
+# summary results on 5 folds::
+#    target_name  r_sq_valid  mae_valid  auc_valid  best_iteration  n_estimators  learning_rate  max_depth  num_leaves
+# 0        rate       0.053      0.013        NaN        1121.400      1200.000          0.005      3.000       8.000
 
-# target=theta | feature imp:
+# average prediction by model:
+#        cfips asofdate  date  horizon   rate
+# 0 30376.038     None  None    3.000 -0.001
+
+#         count   mean   std    min     5%    25%    50%    75%   95%   98%   99%   max  count_nan  prc_nan  horizon
+# rate 3135.000 -0.004 0.002 -0.013 -0.007 -0.005 -0.004 -0.002 0.000 0.002 0.003 0.011          0    0.000        1
+# rate 3135.000 -0.002 0.002 -0.012 -0.006 -0.004 -0.002 -0.001 0.002 0.003 0.004 0.013          0    0.000        2
+# rate 3135.000 -0.000 0.003 -0.012 -0.005 -0.002 -0.001  0.001 0.004 0.005 0.006 0.015          0    0.000        3
+# rate 3135.000  0.000 0.003 -0.011 -0.004 -0.002 -0.000  0.002 0.005 0.006 0.007 0.015          0    0.000        4
+# rate 3135.000  0.002 0.003 -0.010 -0.002  0.000  0.002  0.003 0.006 0.007 0.009 0.016          0    0.000        5
+
+# target=rate | feature imp (top 25):
 #     target_name                     feature  importance
-# 0        theta               val_par_theta       0.194
-# 1        theta                   val_theta       0.138
-# 2        theta  val_diff_smape_theta_naive       0.083
-# 3        theta         ratio_diff_lte10_10       0.051
-# 4        theta                       avg_5       0.045
-# 5        theta          ratio_diff_lte5_10       0.043
-# 6        theta                    last_obs       0.042
-# 7        theta         ratio_diff_lte50_10       0.037
-# 8        theta          ratio_diff_lte10_5       0.036
-# 9        theta                         avg       0.035
-# 10       theta                   val_naive       0.029
-# 11       theta                   q_trend_5       0.025
-# 12       theta          val_par_window_ema       0.019
-# 13       theta                   q_trend_1       0.017
-# 14       theta                   sd_prc_18       0.012
-# 15       theta           ratio_diff_lte5_5       0.012
+# 0         rate                     horizon       0.187
+# 1         rate                    last_prc       0.070
+# 2         rate          median_hh_inc_2021       0.035
+# 3         rate  val_diff_smape_theta_naive       0.028
+# 4         rate         ratio_diff_lte10_10       0.022
+# 5         rate                 pct_bb_2021       0.021
+# 6         rate                   avg_prc_5       0.021
+# 7         rate                  avg_prc_10       0.018
+# 8         rate                    slope_10       0.018
+# 9         rate                    last_obs       0.017
+# 10        rate            pct_college_2021       0.017
+# 11        rate         ratio_diff_lte50_10       0.016
+# 12        rate          ratio_diff_lte10_5       0.015
+# 13        rate                     hurst_5       0.015
+# 14        rate                       avg_5       0.014
+# 15        rate              iqr_m_ratio_10       0.014
+# 16        rate                     avg_prc       0.014
+# 17        rate                     r_sq_10       0.014
+# 18        rate       pct_foreign_born_2021       0.014
+# 19        rate                      sd_prc       0.014
+# 20        rate                         avg       0.014
+# 21        rate                 iqr_m_ratio       0.013
+# 22        rate                    sd_prc_5       0.013
+# 23        rate          ratio_diff_lte5_10       0.013
+# 24        rate           chow_val_20210101       0.012

@@ -158,7 +158,7 @@ def plot_fcsts_and_actual(df_actual, df_fcsts, time_name='date', target_name='va
         fig.add_trace(
             go.Scatter(
                 x=tmp[time_name],
-                y=np.round(tmp[c], 4),
+                y=np.round(tmp[c], 2),
                 name=c,
                 mode='lines+markers',
                 opacity=opacity_,

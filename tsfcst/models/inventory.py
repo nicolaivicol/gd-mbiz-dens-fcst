@@ -1,6 +1,6 @@
 from tsfcst.models.ma import MovingAverageModel, ExponentialMovingAverageModel, SimpleMovingAverageModel
 from tsfcst.models.hw import HoltWintersSmModel
-from tsfcst.models.prophet import ProphetModel
+# from tsfcst.models.prophet import ProphetModel
 from tsfcst.models.theta import ThetaSmModel
 from tsfcst.models.naive import NaiveModel
 from tsfcst.models.arima import ArimaModel
@@ -18,6 +18,6 @@ MODELS = {
     'theta': ThetaSmModel,
     'ets': ETSsmModel,
     'hw': HoltWintersSmModel,
-    'prophet': ProphetModel,
+    # 'prophet': ProphetModel,
     'arima': ArimaModel,
 }
